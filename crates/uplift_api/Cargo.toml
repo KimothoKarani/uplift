@@ -1,0 +1,43 @@
+[package]
+name = "uplift_api"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "uplift_api"
+path = "src/main.rs"
+
+[dependencies]
+uplift_core = { path = "../uplift_core" }
+uplift_db = { path = "../uplift_db" }
+uplift_jobs = { path = "../uplift_jobs" }
+uplift_connectors = { path = "../uplift_connectors" }
+uplift_web = { path = "../uplift_web" }
+tokio = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+leptos = { workspace = true }
+leptos_axum = { workspace = true }
+leptos_meta = { workspace = true }
+leptos_router = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+moka = { workspace = true }
+jsonwebtoken = { workspace = true }
+async-stripe = { workspace = true }
+oauth2 = { workspace = true }
+config = { workspace = true }
+dotenvy = { workspace = true }
+metrics = { workspace = true }
+metrics-exporter-prometheus = { workspace = true }
+sentry = { workspace = true }
+aes-gcm = { workspace = true }
+base64 = { workspace = true }

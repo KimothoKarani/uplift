@@ -1,0 +1,21 @@
+[package]
+name = "uplift_jobs"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+uplift_core = { path = "../uplift_core" }
+uplift_db = { path = "../uplift_db" }
+uplift_connectors = { path = "../uplift_connectors" }
+tokio = { workspace = true }
+apalis = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+lettre = { workspace = true }
+chromiumoxide = { workspace = true }

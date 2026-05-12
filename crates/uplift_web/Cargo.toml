@@ -1,0 +1,15 @@
+[package]
+name = "uplift_web"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+uplift_core = { path = "../uplift_core" }
+leptos = { workspace = true }
+leptos_meta = { workspace = true }
+leptos_router = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
