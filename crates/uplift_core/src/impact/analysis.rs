@@ -104,7 +104,7 @@ pub fn run_analysis(
         })
         .collect();
 
-    Ok(ImpactReport { 
+    let report = ImpactReport { 
         model_version: ModelVersion::ItsV1, 
         summary: Summary { 
             cumulative_effect, 
@@ -113,8 +113,14 @@ pub fn run_analysis(
             relative_effect: relative(cumulative_effect), 
             relative_effect_lower: relative(cumulative_effect_lower), 
             relative_effect_upper: relative(cumulative_effect_upper), 
-            probability_of_effect }, 
-        pointwise, 
+            probability_of_effect
+        },
+        pointwise,
         narrative: String::new(),
-    })
+    };
+
+    Ok(ImpactReport { 
+        narrative: crate::narrative::generate(&report, &series.metric),
+        ..report
+         })
 }
