@@ -1,3 +1,29 @@
+# Build output
 /target
+
+# Environment secrets
 .env
+
+# IDE files
 .idea/
+.vscode/
+
+# SQLx offline query cache (optional - some teams commit this)
+# .sqlx/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker volumes (these are managed by Docker, not git)
+postgres_data/
+pg_data/
+# Downloaded installers
+*.deb
+
+# VS Code settings (optional - some teams commit this, some don't)
+# .vscode/
+
+# Environment files
+.env.local
+.env.production
