@@ -6,6 +6,7 @@ use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 
 use crate::error::{Error, Result};
 
+#[derive(Clone)]
 pub struct Cipher(Aes256Gcm);
 
 impl Cipher {
