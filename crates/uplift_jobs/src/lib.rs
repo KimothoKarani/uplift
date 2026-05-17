@@ -22,6 +22,17 @@ pub struct JobContext {
     pub google_client_id: String,
     pub google_client_secret: String,
     pub google_redirect_uri: String,
+    pub smtp: Option<SmtpConfig>,
+}
+
+/// Email configuration. Optional — if None, send_report jobs skip silently.
+/// Set from environment variables at startup.
+#[derive(Clone)]
+pub struct SmtpConfig {
+    pub host: String,
+    pub username: String,
+    pub password: String,
+    pub from_address: String,
 }
 
 /// Create the Apalis internal tables. One call — setup is not per job type,
