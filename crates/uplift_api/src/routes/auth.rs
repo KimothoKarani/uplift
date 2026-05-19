@@ -18,7 +18,7 @@ use crate::{error::AppError, state::AppState};
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/google", get(google_login))
-        .route("/callbacl", get(google_callback))
+        .route("/callback", get(google_callback))
         .route("/logout", post(logout))
 }
 
