@@ -4,26 +4,24 @@ pub mod health;
 pub mod properties;
 pub mod stripe_webhooks;
 
-use axum::{routing::get, Router};
+use axum::{Router, middleware, routing::get};
+use leptos::html::head;
 
-use crate::state::AppState;
+use crate::{middleware as mw, state::AppState};
 
 pub fn router(state: AppState) -> Router {
-    Router::new()
-        // Health check - no auth needed. Fly.io polls this
-        .route("/health", get(health::handle))
-        // Google OAuth - public, no auth middleware
-        .nest("/auth", auth::router())
-        // REST API - will have auth middleware added when we rite middleware/auth.rs
-        .nest("/api", api_router())
-        // Stripe webhooks - public but signature-verified inside the handler
-        .nest("/stripe", stripe_webhooks::router())
-        .with_state(state)
-}
-
-/// Protected API routes, nested under /api
-fn api_router() -> Router<AppState> {
-    Router::new()
+    // Protected API routes - auth middleware runs on every request here
+    let api = Router::new()
         .nest("/properties", properties::router())
         .nest("/analyses", analyses::router())
+        .route_layer(middleware::from_fn_with_state(state.clone(), mw::auth::authenticate));
+
+    Router::new()
+        .route("/health", get(health::handle))
+        .nest("/auth", auth::router())
+        .nest("/api", api)
+        .nest("/stripe", stripe_webhooks::router())
+        // Request logging on everything
+        .layer(middleware::from_fn(mw::logging::log_request))
+        .with_state(state)
 }
