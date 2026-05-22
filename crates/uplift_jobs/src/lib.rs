@@ -6,7 +6,7 @@ pub mod send_report;
 
 pub use error::{Error, Result};
 
-use apalis::prelude::{Monitor, WorkerBuilder, WorkerFactoryFn};
+use apalis::prelude::{Monitor, Storage, WorkerBuilder, WorkerFactoryFn};
 use apalis_sql::postgres::PostgresStorage;
 use reqwest::Client;
 use sqlx::PgPool;
@@ -78,6 +78,25 @@ pub async fn start_workers(ctx: JobContext) -> anyhow::Result<()> {
         )
         .run()
         .await?;
+
+    Ok(())
+}
+
+/// Enqueue a RunAnalysisJob from the API layer.
+/// Kept here sp uplift_api doesn't need to import apalis-sql directly.
+pub async fn enqueue_run_analysis(
+    pool: &PgPool,
+    job: run_analysis::RunAnalysisJob,
+) -> anyhow::Result<()> {
+    // use apalis::prelude::Backend;
+
+    let mut storage: PostgresStorage<run_analysis::RunAnalysisJob> = 
+        PostgresStorage::new(pool.clone());
+
+    storage
+        .push(job)
+        .await
+        .map_err(|e| anyhow::anyhow!("failed to enqueue job: {e}"))?;
 
     Ok(())
 }
