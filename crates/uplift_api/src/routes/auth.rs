@@ -6,7 +6,6 @@ use axum::{
     Router,
 };
 use chrono::Utc;
-use leptos::html::Head;
 use serde::Deserialize;
 use uuid::Uuid;
 
