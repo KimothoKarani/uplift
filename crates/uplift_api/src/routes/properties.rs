@@ -1,17 +1,15 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    routing::{delete, get, post},
+    routing::{delete, get},
     Extension, Json, Router,
 };
-use moka::ops::compute::Op;
 use serde::Deserialize;
-use uplift_connectors::google::auth;
 use uuid::Uuid;
 
-use uplift_db::{Connection, ConnectionRepo, Property, PropertyRepo, repositories::properties};
+use uplift_db::{Connection, ConnectionRepo, Property, PropertyRepo};
 
-use crate::{error::AppError, middleware::auth::AuthUser, state::{self, AppState}};
+use crate::{error::AppError, middleware::auth::AuthUser, state::AppState};
 
 pub fn router() -> Router<AppState> {
     Router::new()

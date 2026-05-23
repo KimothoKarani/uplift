@@ -4,7 +4,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use leptos::server_fn::request::Req;
+
 use uuid::Uuid;
 
 use uplift_db::{SessionRepo, User, UserRepo};

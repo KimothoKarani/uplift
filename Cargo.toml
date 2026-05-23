@@ -49,7 +49,7 @@ jsonwebtoken = "9"
 
 # Payments
 # "stripe" on crates.io is a dead crate (last published 2015); async-stripe is the maintained library
-async-stripe = { version = "0.41", features = ["runtime-tokio-hyper"] }
+async-stripe = { version = "0.41", features = ["runtime-tokio-hyper", "billing", "checkout", "webhook-events"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

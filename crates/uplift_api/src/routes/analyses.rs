@@ -1,12 +1,11 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    routing::{get, post},
+    routing::{get},
     Extension, Json, Router,
 };
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
-use uplift_connectors::google::auth;
 use uuid::Uuid;
 
 use uplift_db::{Analysis, AnalysisRepo, AnalysisResult, PropertyRepo};
