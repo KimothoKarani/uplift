@@ -61,14 +61,12 @@ async fn handle_webhook(
         }
     }
 
-    // Always 200 — Stripe retries on non-2xx, we don't want infinite retries
-    // for events we've already processed or chosen to ignore.
     Ok(StatusCode::OK)
 }
 
 async fn handle_checkout_completed(
     state: &AppState,
-    session: Box<stripe::CheckoutSession>,
+    session: stripe::CheckoutSession,
 ) -> Result<(), AppError> {
     let org_id_str = session
         .metadata
@@ -110,7 +108,7 @@ async fn handle_checkout_completed(
 
 async fn handle_subscription_updated(
     state: &AppState,
-    sub: Box<stripe::Subscription>,
+    sub: stripe::Subscription,
 ) -> Result<(), AppError> {
     let stripe_sub_id = sub.id.to_string();
 
@@ -147,7 +145,7 @@ async fn handle_subscription_updated(
 
 async fn handle_subscription_deleted(
     state: &AppState,
-    sub: Box<stripe::Subscription>,
+    sub: stripe::Subscription,
 ) -> Result<(), AppError> {
     let stripe_sub_id = sub.id.to_string();
 
@@ -174,7 +172,7 @@ async fn handle_subscription_deleted(
 
 async fn handle_payment_failed(
     state: &AppState,
-    invoice: Box<stripe::Invoice>,
+    invoice: stripe::Invoice,
 ) -> Result<(), AppError> {
     let stripe_sub_id = match &invoice.subscription {
         Some(sub) => sub.id().to_string(),
@@ -227,13 +225,13 @@ fn tier_from_items(sub: &stripe::Subscription) -> &'static str {
 
 fn subscription_status_str(status: &stripe::SubscriptionStatus) -> &'static str {
     match status {
-        stripe::SubscriptionStatus::Active           => "active",
-        stripe::SubscriptionStatus::PastDue          => "past_due",
-        stripe::SubscriptionStatus::Canceled         => "canceled",
-        stripe::SubscriptionStatus::Trialing         => "trialing",
-        stripe::SubscriptionStatus::Incomplete       => "incomplete",
+        stripe::SubscriptionStatus::Active            => "active",
+        stripe::SubscriptionStatus::PastDue           => "past_due",
+        stripe::SubscriptionStatus::Canceled          => "canceled",
+        stripe::SubscriptionStatus::Trialing          => "trialing",
+        stripe::SubscriptionStatus::Incomplete        => "incomplete",
         stripe::SubscriptionStatus::IncompleteExpired => "incomplete_expired",
-        stripe::SubscriptionStatus::Unpaid           => "unpaid",
-        _                                            => "active",
+        stripe::SubscriptionStatus::Unpaid            => "unpaid",
+        _                                             => "active",
     }
 }

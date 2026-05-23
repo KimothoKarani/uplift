@@ -41,3 +41,6 @@ metrics-exporter-prometheus = { workspace = true }
 sentry = { workspace = true }
 aes-gcm = { workspace = true }
 base64 = { workspace = true }
+apalis-sql = {workspace = true}
+reqwest = {workspace = true}
+sqlx = { workspace = true }
