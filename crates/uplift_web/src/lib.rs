@@ -4,6 +4,7 @@ use leptos::prelude::*;
 use leptos_meta::*;
 use leptos_router::{components::*, path};
 
+pub mod components;
 pub mod pages;
 pub mod server_utils;
 
