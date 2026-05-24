@@ -28,3 +28,4 @@ pg_data/
 .env.local
 .env.production
 .env.example
+.env.example
