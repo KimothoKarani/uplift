@@ -1,3 +1,5 @@
+#![recursion_limit = "512"]
+
 mod error;
 mod state;
 mod middleware;
@@ -27,17 +29,17 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("failed to connect to database")?;
 
-    uplift_db::run_migrations(&pool)
-        .await
-        .context("failed to run database migrations")?;
-
-    tracing::info!("database ready");
-
     uplift_jobs::setup_job_storage(&pool)
         .await
         .context("failed to set up job storage")?;
 
     tracing::info!("job storage ready");
+
+    uplift_db::run_migrations(&pool)
+        .await
+        .context("failed to run database migrations")?;
+
+    tracing::info!("database ready");
 
     let cipher = Cipher::from_base64_key(&cfg.encryption_key)
         .context("invalid ENCRYPTION_KEY")?;

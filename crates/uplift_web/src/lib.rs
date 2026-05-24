@@ -7,6 +7,8 @@ pub mod components;
 pub mod pages;
 pub mod server_utils;
 
+// Called by uplift_api to render the full HTML document shell.
+// LeptosOptions comes from the server's Leptos config.
 pub fn shell(options: leptos::config::LeptosOptions) -> impl IntoView {
     view! {
         <!DOCTYPE html>
@@ -25,7 +27,7 @@ pub fn shell(options: leptos::config::LeptosOptions) -> impl IntoView {
                 />
                 <link
                     rel="stylesheet"
-                    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+                    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
                 />
                 <script src="https://cdn.tailwindcss.com"></script>
                 <script>
@@ -34,35 +36,23 @@ pub fn shell(options: leptos::config::LeptosOptions) -> impl IntoView {
                             extend: {
                                 fontFamily: {
                                     sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+                                    mono: ['JetBrains Mono', 'ui-monospace'],
                                 },
                                 colors: {
                                     brand: {
-                                        DEFAULT: '#1B3A3A',
-                                        hover:   '#2E5E5E',
+                                        50:  '#eef2ff',
+                                        100: '#e0e7ff',
+                                        500: '#6366f1',
+                                        600: '#4f46e5',
+                                        700: '#4338ca',
                                     },
-                                    sidebar: '#F7F7F5',
-                                    page:    '#EDECEA',
-                                    card:    '#FFFFFF',
-                                    border:  '#E5E2DC',
-                                    ink: {
-                                        DEFAULT: '#1A1917',
-                                        muted:   '#6B6760',
-                                        hint:    '#9B9790',
-                                    },
-                                    ok:     '#1B6B4E',
-                                    warn:   '#B87316',
-                                    danger: '#B83232',
-                                    'ok-bg':     '#EEF4F1',
-                                    'warn-bg':   '#FDF6E8',
-                                    'danger-bg': '#FCEEED',
-                                    accent: '#4C9BE8',
                                 },
                             },
                         },
                     }"
                 </script>
             </head>
-            <body class="bg-page font-sans antialiased text-ink">
+            <body class="bg-gray-50 font-sans antialiased text-gray-900">
                 <App/>
             </body>
         </html>
@@ -72,6 +62,7 @@ pub fn shell(options: leptos::config::LeptosOptions) -> impl IntoView {
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
+
     view! {
         <Title text="Uplift"/>
         <Router>
@@ -93,21 +84,21 @@ pub fn App() -> impl IntoView {
 #[component]
 fn NotFound() -> impl IntoView {
     view! {
-        <div class="min-h-screen bg-sidebar flex flex-col items-center justify-center px-4">
-            <p class="text-xs font-medium tracking-widest text-brand">
+        <div class="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
+            <p class="text-xs font-semibold tracking-widest text-brand-600 uppercase">
                 "404"
             </p>
-            <h1 class="mt-3 text-3xl font-medium tracking-tight text-ink">
+            <h1 class="mt-3 text-3xl font-bold tracking-tight text-gray-900">
                 "Page not found"
             </h1>
-            <p class="mt-2 text-base text-ink-hint">
-                "This page does not exist."
+            <p class="mt-2 text-base text-gray-500">
+                "The page you're looking for doesn't exist."
             </p>
             <a
                 href="/dashboard"
-                class="mt-8 text-sm font-medium text-brand hover:text-brand-hover"
+                class="mt-8 text-sm font-medium text-brand-600 hover:text-brand-700"
             >
-                "Back to dashboard"
+                "← Back to dashboard"
             </a>
         </div>
     }

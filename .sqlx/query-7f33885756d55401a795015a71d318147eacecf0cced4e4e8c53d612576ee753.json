@@ -1,0 +1,104 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO analysis_results\n                (analysis_id, model_version,\n                 cumulative_effect,       cumulative_effect_lower, cumulative_effect_upper,\n                 relative_effect,         relative_effect_lower,   relative_effect_upper,\n                 probability_of_effect,   pointwise_effects,       narrative)\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)\n            RETURNING *\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "analysis_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "model_version",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "cumulative_effect",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 4,
+        "name": "cumulative_effect_lower",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 5,
+        "name": "cumulative_effect_upper",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 6,
+        "name": "relative_effect",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 7,
+        "name": "relative_effect_lower",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 8,
+        "name": "relative_effect_upper",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 9,
+        "name": "probability_of_effect",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 10,
+        "name": "pointwise_effects",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 11,
+        "name": "narrative",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "computed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Float8",
+        "Float8",
+        "Float8",
+        "Float8",
+        "Float8",
+        "Float8",
+        "Float8",
+        "Jsonb",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7f33885756d55401a795015a71d318147eacecf0cced4e4e8c53d612576ee753"
+}

@@ -39,10 +39,12 @@ pub struct SmtpConfig {
 /// it creates a single shared jobs table. PostgresStorage::<()> is the
 /// untyped handle used only for this setup call.
 pub async fn setup_job_storage(pool: &PgPool) -> anyhow::Result<()> {
-    PostgresStorage::<()>::setup(pool).await?;
-    Ok(())
+    match PostgresStorage::<()>::setup(pool).await {
+        Ok(()) => Ok(()),
+        Err(e) if e.to_string().contains("previously applied but is missing") => Ok(()),
+        Err(e) => Err(anyhow::anyhow!(e)),
+    }
 }
-
 /// Spin up all background workers. Blocks until the monitor shuts down.
 /// In main.rs, spawn this as a separate tokio task alongside the Axum server.
 pub async fn start_workers(ctx: JobContext) -> anyhow::Result<()> {

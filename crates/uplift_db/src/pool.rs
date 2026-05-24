@@ -1,4 +1,4 @@
-use sqlx::{PgPool, postgres::PgPoolOptions};
+use sqlx::{postgres::PgPoolOptions, PgPool};
 
 pub async fn connect(database_url: &str) -> sqlx::Result<PgPool> {
     PgPoolOptions::new()
@@ -8,5 +8,8 @@ pub async fn connect(database_url: &str) -> sqlx::Result<PgPool> {
 }
 
 pub async fn run_migrations(pool: &PgPool) -> sqlx::Result<(), sqlx::migrate::MigrateError> {
-    sqlx::migrate!("./migrations").run(pool).await
+    let mut migrator = sqlx::migrate!("./migrations");
+    migrator.ignore_missing = true;
+    migrator.locking = false;
+    migrator.run(pool).await
 }

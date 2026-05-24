@@ -1,0 +1,100 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM analyses WHERE organization_id = $1 ORDER BY created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "organization_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "property_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "metric",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "intervention_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 5,
+        "name": "pre_period_start",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 6,
+        "name": "pre_period_end",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 7,
+        "name": "post_period_start",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 8,
+        "name": "post_period_end",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 9,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "error_message",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 13,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "6cadc930c56085c9768bb0ca64fa511e0d649151ddd539f87ef198f6e093455b"
+}
