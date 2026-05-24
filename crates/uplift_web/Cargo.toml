@@ -9,12 +9,17 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 uplift_core = { path = "../uplift_core" }
-uplift_db = {path = "../uplift_db"}
-leptos = { workspace = true }
-leptos_meta = { workspace = true }
+uplift_db   = { path = "../uplift_db" }
+uplift_jobs = { path = "../uplift_jobs" }
+leptos        = { workspace = true }
+leptos_axum   = { workspace = true }
+leptos_meta   = { workspace = true }
 leptos_router = { workspace = true }
-serde = { workspace = true }
+axum    = { workspace = true }
+sqlx    = { workspace = true }
+tokio   = { workspace = true }
+serde      = { workspace = true }
 serde_json = { workspace = true }
-uuid = { workspace = true }
+uuid   = { workspace = true }
 chrono = { workspace = true }
-anyhow = {workspace = true}
+anyhow = { workspace = true }
