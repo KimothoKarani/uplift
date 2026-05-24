@@ -4,12 +4,23 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
+uplift_db = { path = "../uplift_db" }
+uplift_jobs = { path = "../uplift_jobs" }
 uplift_core = { path = "../uplift_core" }
 leptos = { workspace = true }
 leptos_meta = { workspace = true }
 leptos_router = { workspace = true }
+leptos_axum = { workspace = true }
+leptos_config = { workspace = true }
+axum = { workspace = true }
+sqlx = { workspace = true }
+tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
+anyhow = { workspace = true }

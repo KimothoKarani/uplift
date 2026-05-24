@@ -1,0 +1,109 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO analyses\n                (organization_id, property_id, metric, intervention_date,\n                 pre_period_start, pre_period_end, post_period_start, post_period_end,\n                 description, created_by)\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)\n            RETURNING *\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "organization_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "property_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "metric",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "intervention_date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 5,
+        "name": "pre_period_start",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 6,
+        "name": "pre_period_end",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 7,
+        "name": "post_period_start",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 8,
+        "name": "post_period_end",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 9,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "error_message",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 13,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Date",
+        "Date",
+        "Date",
+        "Date",
+        "Date",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "74a70bd9d70c1e8e7ce9565f88268b2c6375bcaf92dc2320534c73011ab5fea4"
+}

@@ -1,0 +1,12 @@
+[[package]]
+name = "uplift"
+bin-package = "uplift_api"
+lib-package = "uplift_web"
+bin-features = []
+lib-features = []
+site-root = "target/site"
+site-pkg-dir = "pkg"
+site-addr = "127.0.0.1:3000"
+reload-port = 3001
+style-file = ""
+assets-dir = "public"

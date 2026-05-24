@@ -44,3 +44,4 @@ base64 = { workspace = true }
 apalis-sql = {workspace = true}
 reqwest = {workspace = true}
 sqlx = { workspace = true }
+leptos_config = { workspace = true }

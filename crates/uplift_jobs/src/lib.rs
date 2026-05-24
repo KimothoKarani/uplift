@@ -38,9 +38,15 @@ pub struct SmtpConfig {
 /// Create the Apalis internal tables. One call — setup is not per job type,
 /// it creates a single shared jobs table. PostgresStorage::<()> is the
 /// untyped handle used only for this setup call.
+///
+/// Silently ignores "previously applied but missing" errors: both Apalis and
+/// our SQLx migrator share _sqlx_migrations, so each sees the other's rows.
 pub async fn setup_job_storage(pool: &PgPool) -> anyhow::Result<()> {
-    PostgresStorage::<()>::setup(pool).await?;
-    Ok(())
+    match PostgresStorage::<()>::setup(pool).await {
+        Ok(()) => Ok(()),
+        Err(e) if e.to_string().contains("previously applied but is missing") => Ok(()),
+        Err(e) => Err(anyhow::anyhow!(e)),
+    }
 }
 
 /// Spin up all background workers. Blocks until the monitor shuts down.

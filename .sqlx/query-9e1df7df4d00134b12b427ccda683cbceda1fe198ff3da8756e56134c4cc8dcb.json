@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT date, value\n            FROM time_series_data\n            WHERE property_id = $1\n                AND metric   = $2\n                AND date BETWEEN $3 AND $4\n            ORDER BY date\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "date",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 1,
+        "name": "value",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "9e1df7df4d00134b12b427ccda683cbceda1fe198ff3da8756e56134c4cc8dcb"
+}
