@@ -54,10 +54,7 @@ impl SubscriptionRepo {
     }
 
     /// Check if an org has an active subscription before allowing an analysis.
-    pub async fn find_by_org(
-        pool: &PgPool,
-        org_id: Uuid,
-    ) -> Result<Option<Subscription>> {
+    pub async fn find_by_org(pool: &PgPool, org_id: Uuid) -> Result<Option<Subscription>> {
         let sub = sqlx::query_as!(
             Subscription,
             "SELECT * FROM subscriptions WHERE organization_id = $1",

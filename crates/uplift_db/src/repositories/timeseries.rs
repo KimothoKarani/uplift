@@ -43,7 +43,6 @@ impl TimeSeriesRepo {
         .await?;
 
         Ok(())
-
     }
 
     /// Read a date range back out as a Timeseries - ready to pass directly to run_analysis().
@@ -79,13 +78,12 @@ impl TimeSeriesRepo {
 
         let points = rows
             .into_iter()
-            .map(|r| DataPoint{
+            .map(|r| DataPoint {
                 timestamp: r.date.and_time(NaiveTime::MIN).and_utc(),
                 value: r.value,
             })
             .collect();
-            
+
         Ok(TimeSeries::new(metric, points))
-        
     }
 }

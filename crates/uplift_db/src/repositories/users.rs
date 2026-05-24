@@ -42,7 +42,7 @@ impl UserRepo {
         )
         .fetch_one(pool)
         .await?;
-        
+
         Ok(user)
     }
 
@@ -58,17 +58,13 @@ impl UserRepo {
             .fetch_optional(pool)
             .await?
             .ok_or(Error::NotFound)
-}
+    }
 
     pub async fn find_by_google_id(pool: &PgPool, google_id: &str) -> Result<User> {
-        sqlx::query_as!(
-            User,
-            "SELECT * FROM users WHERE google_id = $1",
-            google_id,
-        )
-        .fetch_optional(pool)
-        .await?
-        .ok_or(Error::NotFound)
+        sqlx::query_as!(User, "SELECT * FROM users WHERE google_id = $1", google_id,)
+            .fetch_optional(pool)
+            .await?
+            .ok_or(Error::NotFound)
     }
 
     /// Handles first login (creates) and return login (updates) in one atomic query

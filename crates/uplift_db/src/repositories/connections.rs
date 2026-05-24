@@ -29,12 +29,12 @@ struct ConnectionRow {
 
 impl ConnectionRow {
     fn decrypt(self, cipher: &Cipher) -> Result<Connection> {
-        Ok(Connection { 
-            id: self.id, 
-            organization_id: self.organization_id, 
-            google_account_email: self.google_account_email, 
-            access_token: cipher.decrypt(&self.access_token)?, 
-            refresh_token: cipher.decrypt(&self.refresh_token)?, 
+        Ok(Connection {
+            id: self.id,
+            organization_id: self.organization_id,
+            google_account_email: self.google_account_email,
+            access_token: cipher.decrypt(&self.access_token)?,
+            refresh_token: cipher.decrypt(&self.refresh_token)?,
             token_expires_at: self.token_expires_at,
         })
     }
@@ -106,11 +106,7 @@ impl ConnectionRepo {
         Ok(())
     }
 
-    pub async fn find_by_id(
-        pool: &PgPool,
-        cipher: &Cipher,
-        id: Uuid,
-    ) -> Result<Connection> {
+    pub async fn find_by_id(pool: &PgPool, cipher: &Cipher, id: Uuid) -> Result<Connection> {
         let row = sqlx::query_as!(
             ConnectionRow,
             r#"

@@ -56,11 +56,7 @@ impl PropertyRepo {
         .await?)
     }
 
-    pub async fn find_by_id(
-        pool: &PgPool,
-        id: Uuid,
-        org_id: Uuid,
-    ) -> Result<Property> {
+    pub async fn find_by_id(pool: &PgPool, id: Uuid, org_id: Uuid) -> Result<Property> {
         sqlx::query_as!(
             Property,
             "SELECT * FROM ga4_properties WHERE id = $1 AND organization_id = $2",

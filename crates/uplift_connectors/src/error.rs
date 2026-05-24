@@ -9,7 +9,7 @@ pub enum Error {
     Auth(String),
 
     #[error("Google API error {status}: {message}")]
-    Api {status: u16, message: String},
+    Api { status: u16, message: String },
 
     #[error("failed to parse API response: {0}")]
     Parse(String),

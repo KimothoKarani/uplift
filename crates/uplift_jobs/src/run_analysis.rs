@@ -33,13 +33,9 @@ pub async fn handle(
             // Record the failure before returning — otherwise the analysis
             // row sits at 'running' with no indication of what went wrong.
             tracing::error!(analysis_id = %analysis_id, error = %e, "analysis failed");
-            let _ = AnalysisRepo::set_status(
-                &ctx.pool,
-                analysis_id,
-                "failed",
-                Some(&e.to_string()),
-            )
-            .await;
+            let _ =
+                AnalysisRepo::set_status(&ctx.pool, analysis_id, "failed", Some(&e.to_string()))
+                    .await;
             Err(e.into())
         }
     }
@@ -160,7 +156,7 @@ async fn execute(job: RunAnalysisJob, ctx: &JobContext) -> Result<()> {
     );
 
     let report = uplift_core::impact::analysis::run_analysis(&series, intervention_dt, 0.05)?;
-    
+
     // Step 9 — persist the result
     AnalysisRepo::save_result(&ctx.pool, job.analysis_id, &report).await?;
 
@@ -179,10 +175,12 @@ async fn execute(job: RunAnalysisJob, ctx: &JobContext) -> Result<()> {
 
 fn metric_from_str(s: &str) -> Result<Ga4Metric> {
     match s {
-        "sessions"        => Ok(Ga4Metric::Sessions),
-        "activeUsers"     => Ok(Ga4Metric::ActiveUsers),
-        "conversions"     => Ok(Ga4Metric::Conversions),
+        "sessions" => Ok(Ga4Metric::Sessions),
+        "activeUsers" => Ok(Ga4Metric::ActiveUsers),
+        "conversions" => Ok(Ga4Metric::Conversions),
         "screenPageViews" => Ok(Ga4Metric::ScreenPageViews),
-        other => Err(Error::Other(anyhow::anyhow!("unknown GA4 metric: '{other}'"))),
+        other => Err(Error::Other(anyhow::anyhow!(
+            "unknown GA4 metric: '{other}'"
+        ))),
     }
 }

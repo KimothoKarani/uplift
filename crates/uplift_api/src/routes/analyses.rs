@@ -1,8 +1,8 @@
 use axum::{
+    Extension, Json, Router,
     extract::{Path, State},
     http::StatusCode,
-    routing::{get},
-    Extension, Json, Router,
+    routing::get,
 };
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,6 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_analyses).post(create_analysis))
         .route("/:id", get(get_analysis))
-
 }
 
 // ── Create ────────────────────────────────────────────────────
@@ -36,7 +35,7 @@ struct CreateAnalysisRequest {
     post_period_end: NaiveDate,
     /// Measurement window — what we're attributing the effect over
     description: String,
-}   
+}
 
 async fn create_analysis(
     State(state): State<AppState>,
@@ -67,11 +66,19 @@ async fn create_analysis(
         req.post_period_end,
         &req.description,
         user.id,
-    ).await?;
+    )
+    .await?;
 
     // Enqueue the background job — the handler returns immediately
-    uplift_jobs::enqueue_run_analysis(&state.pool, 
-        RunAnalysisJob { analysis_id: analysis.id, org_id, },).await.map_err(|e| AppError::Internal(e))?;
+    uplift_jobs::enqueue_run_analysis(
+        &state.pool,
+        RunAnalysisJob {
+            analysis_id: analysis.id,
+            org_id,
+        },
+    )
+    .await
+    .map_err(|e| AppError::Internal(e))?;
 
     tracing::info!(
         analysis_id = %analysis.id,
@@ -82,7 +89,6 @@ async fn create_analysis(
 
     // 202 Accepted - the job is running, not complete yet
     Ok((StatusCode::ACCEPTED, Json(analysis)))
-
 }
 
 // ------ List -----------
@@ -90,8 +96,7 @@ async fn list_analyses(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
 ) -> Result<Json<Vec<Analysis>>, AppError> {
-    let analyses = 
-        AnalysisRepo::list_by_org(&state.pool, auth_user.0.organization_id).await?;
+    let analyses = AnalysisRepo::list_by_org(&state.pool, auth_user.0.organization_id).await?;
 
     Ok(Json(analyses))
 }
@@ -121,27 +126,32 @@ async fn get_analysis(
     Ok(Json(AnalysisDetail { analysis, result }))
 }
 
-
-
 fn validate_dates(req: &CreateAnalysisRequest) -> Result<(), AppError> {
     if req.pre_period_start >= req.pre_period_end {
-        return Err(AppError::BadRequest("pre_period_start must be before pre_period_end".into()));
+        return Err(AppError::BadRequest(
+            "pre_period_start must be before pre_period_end".into(),
+        ));
     }
 
     if req.pre_period_end >= req.intervention_date {
-        return Err(AppError::BadRequest("pre_period_end must be before intervention_date".into()));
-
+        return Err(AppError::BadRequest(
+            "pre_period_end must be before intervention_date".into(),
+        ));
     }
 
     if req.post_period_start > req.post_period_end {
-        return Err(AppError::BadRequest("post_period_start must be before or equal to post_period_end".into()));
+        return Err(AppError::BadRequest(
+            "post_period_start must be before or equal to post_period_end".into(),
+        ));
     }
 
-     // The causal model needs at least 30 pre-period data points to fit reliably
-     let pre_days = (req.pre_period_end - req.pre_period_start).num_days();
-     if pre_days < 30 {
-        return Err(AppError::BadRequest(format!("pre_period must be at least 30 days - got {pre_days}")));
-     }
+    // The causal model needs at least 30 pre-period data points to fit reliably
+    let pre_days = (req.pre_period_end - req.pre_period_start).num_days();
+    if pre_days < 30 {
+        return Err(AppError::BadRequest(format!(
+            "pre_period must be at least 30 days - got {pre_days}"
+        )));
+    }
 
-     Ok(())
+    Ok(())
 }

@@ -116,11 +116,7 @@ impl AnalysisRepo {
         .await?)
     }
 
-    pub async fn find_by_id(
-        pool: &PgPool,
-        id: Uuid,
-        org_id: Uuid,
-    ) -> Result<Analysis> {
+    pub async fn find_by_id(pool: &PgPool, id: Uuid, org_id: Uuid) -> Result<Analysis> {
         sqlx::query_as!(
             Analysis,
             "SELECT * FROM analyses WHERE id = $1 AND organization_id = $2",

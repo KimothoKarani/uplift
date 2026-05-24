@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use oauth2::{
-    basic::BasicClient, AuthUrl, ClientId, ClientSecret,
-    CsrfToken, RedirectUrl, Scope, TokenUrl,
+    AuthUrl, ClientId, ClientSecret, CsrfToken, RedirectUrl, Scope, TokenUrl, basic::BasicClient,
 };
 use reqwest::Client;
 use serde::Deserialize;
@@ -34,27 +33,23 @@ struct RawTokenResponse {
 }
 
 impl GoogleOAuth {
-    pub fn new(
-        client_id: String,
-        client_secret: String,
-        redirect_uri: String,
-    ) -> Result<Self> {
+    pub fn new(client_id: String, client_secret: String, redirect_uri: String) -> Result<Self> {
         let oauth_client = BasicClient::new(
             ClientId::new(client_id.clone()),
             Some(ClientSecret::new(client_secret.clone())),
-            AuthUrl::new(AUTH_URL.to_string())
-                .map_err(|e| Error::Auth(e.to_string()))?,
-            Some(
-                TokenUrl::new(TOKEN_URL.to_string())
-                    .map_err(|e| Error::Auth(e.to_string()))?,
-            ),
+            AuthUrl::new(AUTH_URL.to_string()).map_err(|e| Error::Auth(e.to_string()))?,
+            Some(TokenUrl::new(TOKEN_URL.to_string()).map_err(|e| Error::Auth(e.to_string()))?),
         )
         .set_redirect_uri(
-            RedirectUrl::new(redirect_uri.clone())
-                .map_err(|e| Error::Auth(e.to_string()))?,
+            RedirectUrl::new(redirect_uri.clone()).map_err(|e| Error::Auth(e.to_string()))?,
         );
 
-        Ok(Self{oauth_client, client_id, client_secret, redirect_uri})
+        Ok(Self {
+            oauth_client,
+            client_id,
+            client_secret,
+            redirect_uri,
+        })
     }
 
     /// Build the Google consent screen URL.
@@ -77,11 +72,7 @@ impl GoogleOAuth {
     }
 
     /// Exchange the authorization code from Google's callback for tokens.
-    pub async fn exchange_code(
-        &self,
-        code: String,
-        http: &Client,
-    ) -> Result<TokenSet> {
+    pub async fn exchange_code(&self, code: String, http: &Client) -> Result<TokenSet> {
         let params = [
             ("code", code.as_str()),
             ("client_id", self.client_id.as_str()),
@@ -92,7 +83,7 @@ impl GoogleOAuth {
 
         let raw = self.post_token(http, &params).await?;
 
-        Ok(TokenSet{
+        Ok(TokenSet {
             access_token: raw.access_token,
             refresh_token: raw.refresh_token,
             expires_at: Utc::now() + chrono::Duration::seconds(raw.expires_in),
@@ -102,11 +93,7 @@ impl GoogleOAuth {
 
     /// Get a new access token using the stored refresh token.
     /// Call this when expires_at is within 5 minutes of now.
-    pub async fn refresh(
-        &self,
-        refresh_token: &str,
-        http: &Client,
-    ) -> Result<TokenSet> {
+    pub async fn refresh(&self, refresh_token: &str, http: &Client) -> Result<TokenSet> {
         let params = [
             ("refresh_token", refresh_token),
             ("client_id", self.client_id.as_str()),
@@ -116,7 +103,7 @@ impl GoogleOAuth {
 
         let raw = self.post_token(http, &params).await?;
 
-        Ok(TokenSet{
+        Ok(TokenSet {
             access_token: raw.access_token,
             refresh_token: Some(refresh_token.to_string()),
             expires_at: Utc::now() + chrono::Duration::seconds(raw.expires_in),
@@ -124,11 +111,7 @@ impl GoogleOAuth {
         })
     }
 
-    async fn post_token(
-        &self,
-        http: &Client,
-        params: &[(&str, &str)],
-    ) -> Result<RawTokenResponse> {
+    async fn post_token(&self, http: &Client, params: &[(&str, &str)]) -> Result<RawTokenResponse> {
         let resp = http.post(TOKEN_URL).form(params).send().await?;
 
         if !resp.status().is_success() {
@@ -140,6 +123,5 @@ impl GoogleOAuth {
         resp.json::<RawTokenResponse>()
             .await
             .map_err(|e| Error::Parse(e.to_string()))
-
     }
 }

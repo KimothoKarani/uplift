@@ -56,32 +56,32 @@ async fn fetch(job: FetchTimeSeriesJob, ctx: &JobContext) -> Result<()> {
         tracing::info!(connection_id = %conn.id, "token expiring - refreshing inline");
 
         let oauth = GoogleOAuth::new(
-            ctx.google_client_id.clone(), 
-            ctx.google_client_secret.clone(), 
+            ctx.google_client_id.clone(),
+            ctx.google_client_secret.clone(),
             ctx.google_redirect_uri.clone(),
         )
-        .map_err(|e| Error::TokenRefresh { 
-            connection_id: conn.id, 
+        .map_err(|e| Error::TokenRefresh {
+            connection_id: conn.id,
             reason: e.to_string(),
         })?;
 
         let fresh = oauth
             .refresh(&conn.refresh_token, &ctx.http)
             .await
-            .map_err(|e| Error::TokenRefresh { 
-                connection_id: conn.id, 
-                reason: e.to_string()
+            .map_err(|e| Error::TokenRefresh {
+                connection_id: conn.id,
+                reason: e.to_string(),
             })?;
-        
+
         ConnectionRepo::update_access_token(
-            &ctx.pool, 
-            &ctx.cipher, 
-            conn.id, 
-            &fresh.access_token, 
-            fresh.expires_at
+            &ctx.pool,
+            &ctx.cipher,
+            conn.id,
+            &fresh.access_token,
+            fresh.expires_at,
         )
         .await?;
-        
+
         conn.access_token = fresh.access_token;
     }
 
@@ -90,10 +90,10 @@ async fn fetch(job: FetchTimeSeriesJob, ctx: &JobContext) -> Result<()> {
 
     let raw = ga4
         .fetch_daily_metric(
-            &conn.access_token, 
-            &job.ga4_property_id, 
-            ga4_metric, 
-            job.start, 
+            &conn.access_token,
+            &job.ga4_property_id,
+            ga4_metric,
+            job.start,
             job.end,
         )
         .await?;
@@ -101,12 +101,8 @@ async fn fetch(job: FetchTimeSeriesJob, ctx: &JobContext) -> Result<()> {
     // normalize fills date gaps with 0.0 - causal model needs a contigoud series
     let series = normalize::into_timeseries(raw, &job.metric)?;
 
-    TimeSeriesRepo::upsert_many(
-        &ctx.pool, 
-        job.property_id, 
-        &job.metric, 
-        &series.points).await?;
-    
+    TimeSeriesRepo::upsert_many(&ctx.pool, job.property_id, &job.metric, &series.points).await?;
+
     tracing::info!(
         property_id = %job.property_id,
         metric = %job.metric,
@@ -115,7 +111,6 @@ async fn fetch(job: FetchTimeSeriesJob, ctx: &JobContext) -> Result<()> {
     );
 
     Ok(())
-
 }
 
 fn metric_from_str(s: &str) -> Result<Ga4Metric> {
@@ -124,6 +119,8 @@ fn metric_from_str(s: &str) -> Result<Ga4Metric> {
         "activeUsers" => Ok(Ga4Metric::ActiveUsers),
         "conversions" => Ok(Ga4Metric::Conversions),
         "screenPageViews" => Ok(Ga4Metric::ScreenPageViews),
-        other => Err(Error::Other(anyhow::anyhow!("unknown GA4 metric: '{other}'"))),
+        other => Err(Error::Other(anyhow::anyhow!(
+            "unknown GA4 metric: '{other}'"
+        ))),
     }
 }

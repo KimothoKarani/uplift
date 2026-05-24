@@ -26,7 +26,7 @@ impl OrgRepo {
         )
         .fetch_one(pool)
         .await?;
-        
+
         Ok(org)
     }
 
@@ -52,11 +52,7 @@ impl OrgRepo {
         .ok_or(Error::NotFound)
     }
 
-    pub async fn set_stripe_customer(
-        pool: &PgPool,
-        id: Uuid,
-        customer_id: &str,
-    ) -> Result<()> {
+    pub async fn set_stripe_customer(pool: &PgPool, id: Uuid, customer_id: &str) -> Result<()> {
         sqlx::query!(
             "UPDATE organizations SET stripe_customer_id = $1 WHERE id = $2",
             customer_id,
@@ -64,9 +60,7 @@ impl OrgRepo {
         )
         .execute(pool)
         .await?;
-        
+
         Ok(())
     }
-
-
 }

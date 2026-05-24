@@ -1,7 +1,7 @@
 mod error;
-mod state;
 mod middleware;
 mod routes;
+mod state;
 
 use anyhow::Context;
 use state::{AppConfig, AppState};
@@ -18,8 +18,7 @@ async fn main() -> anyhow::Result<()> {
     // e.g. RUST_LOG=uplift_api=debug, uplift_jobs=info, sqlx=warn
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
 
@@ -48,8 +47,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Build the cipher from the base64-encoded encryption key.
     // All OAuth tokens are encryped at rest using this.
-    let cipher = Cipher::from_base64_key(&cfg.encryption_key)
-        .context("invalid ENCRYPTION_KEY")?;
+    let cipher = Cipher::from_base64_key(&cfg.encryption_key).context("invalid ENCRYPTION_KEY")?;
 
     let http = reqwest::Client::new();
 
@@ -68,12 +66,8 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // Build AppState for Axum - cfg is consumed here
-    let state = AppState::new(
-        pool.clone(),
-        cipher,
-        http,
-        cfg);
-    
+    let state = AppState::new(pool.clone(), cipher, http, cfg);
+
     // Build the Axum router with all routes attached
     let router = routes::router(state);
 
@@ -103,5 +97,4 @@ async fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
-
 }

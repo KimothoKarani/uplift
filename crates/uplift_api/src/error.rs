@@ -1,10 +1,10 @@
-use sqlx;
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde_json::json;
+use sqlx;
 
 #[derive(Debug)]
 pub enum AppError {
@@ -32,7 +32,10 @@ impl IntoResponse for AppError {
             AppError::Conflict(msg) => (StatusCode::CONFLICT, msg),
             AppError::Internal(e) => {
                 tracing::error!(error = %e, "internal server error");
-                (StatusCode::INTERNAL_SERVER_ERROR, "internal server error".into())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal server error".into(),
+                )
             }
         };
 
@@ -52,7 +55,7 @@ impl From<sqlx::Error> for AppError {
     fn from(value: sqlx::Error) -> Self {
         match value {
             sqlx::Error::RowNotFound => AppError::NotFound,
-            other => AppError::Internal(anyhow::anyhow!(other))
+            other => AppError::Internal(anyhow::anyhow!(other)),
         }
     }
 }

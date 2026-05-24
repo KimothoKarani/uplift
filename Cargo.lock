@@ -6396,6 +6396,7 @@ dependencies = [
 name = "uplift_web"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "chrono",
  "leptos",
  "leptos_meta",
@@ -6403,6 +6404,7 @@ dependencies = [
  "serde",
  "serde_json",
  "uplift_core",
+ "uplift_db",
  "uuid 1.23.1",
 ]
 

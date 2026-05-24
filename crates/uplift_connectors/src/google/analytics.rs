@@ -94,17 +94,19 @@ impl Ga4Client {
         property_id: &str,
         metric: Ga4Metric,
         start: NaiveDate,
-        end: NaiveDate
+        end: NaiveDate,
     ) -> Result<Vec<(NaiveDate, f64)>> {
         let url = format!("{}/{}:runReport", GA4_BASE, property_id);
 
         let body = RunReportRequest {
-            date_ranges: [DateRange{
+            date_ranges: [DateRange {
                 start_date: start.format("%Y-%m-%d").to_string(),
-                end_date:end.format("%Y-%m-%d").to_string(),
+                end_date: end.format("%Y-%m-%d").to_string(),
             }],
-            dimensions: [Dimension {name: "date"}],
-            metrics: [Metric {name: metric.as_str()}],
+            dimensions: [Dimension { name: "date" }],
+            metrics: [Metric {
+                name: metric.as_str(),
+            }],
         };
 
         let resp = self
@@ -121,10 +123,7 @@ impl Ga4Client {
             return Err(Error::Api { status, message });
         }
 
-        let data: RunReportResponse = resp
-            .json()
-            .await
-            .map_err(|e| Error::Parse(e.to_string()))?;
+        let data: RunReportResponse = resp.json().await.map_err(|e| Error::Parse(e.to_string()))?;
 
         let rows = data.rows.ok_or(Error::NoData)?;
         if rows.is_empty() {

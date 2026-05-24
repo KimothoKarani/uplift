@@ -1,9 +1,9 @@
 use axum::{
+    Router,
     extract::{Query, State},
-    http::{header, HeaderMap},
+    http::{HeaderMap, header},
     response::{IntoResponse, Redirect, Response},
     routing::{get, post},
-    Router,
 };
 use chrono::Utc;
 use serde::Deserialize;
@@ -32,11 +32,7 @@ async fn google_login(State(state): State<AppState>) -> Result<Response, AppErro
         "uplift_oauth_state={csrf_token}; HttpOnly; SameSite=Lax; Path=/auth/callback; Max-Age=600"
     );
 
-    Ok((
-        [(header::SET_COOKIE, csrf_cookie)],
-        Redirect::to(&url),
-    )
-        .into_response())
+    Ok(([(header::SET_COOKIE, csrf_cookie)], Redirect::to(&url)).into_response())
 }
 
 // ---- Callback -------------
@@ -52,7 +48,7 @@ async fn google_callback(
     headers: HeaderMap,
 ) -> Result<Response, AppError> {
     // Step 1 - validate CSRF token
-    let stored_csrf = get_cookie(&headers, "uplift_oauth_state").ok_or_else(||{
+    let stored_csrf = get_cookie(&headers, "uplift_oauth_state").ok_or_else(|| {
         AppError::BadRequest("missing oauth state cookie - start login again".into())
     })?;
 
@@ -96,7 +92,9 @@ async fn google_callback(
                 &profile.email,
                 profile.name.as_deref(),
                 &profile.id,
-            "owner",).await?
+                "owner",
+            )
+            .await?
         }
         Err(e) => return Err(AppError::Internal(anyhow::anyhow!(e))),
     };
@@ -116,10 +114,10 @@ async fn google_callback(
         &profile.email,
         &tokens.access_token,
         &refresh_token,
-    tokens.expires_at
+        tokens.expires_at,
     )
     .await?;
-    
+
     //Step 6 - create a session valid for 30 days
     let expires_at = Utc::now() + chrono::Duration::days(30);
     let session = SessionRepo::create(&state.pool, user.id, expires_at).await?;
@@ -138,10 +136,7 @@ async fn google_callback(
 }
 
 // ----- Logout -------------------------
-async fn logout(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<Response, AppError> {
+async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Result<Response, AppError> {
     if let Some(session_id_str) = get_cookie(&headers, "uplift_session") {
         if let Ok(session_id) = session_id_str.parse::<Uuid>() {
             // Best-effort delete - if session doesn't exist, that's fine
@@ -152,14 +147,8 @@ async fn logout(
     // Clear the cookie by setting MAx-Age=0
     let clear_cookie = "uplift_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0";
 
-    Ok((
-        [(header::SET_COOKIE, clear_cookie)],
-        Redirect::to("/"),
-    )
-        .into_response())
+    Ok(([(header::SET_COOKIE, clear_cookie)], Redirect::to("/")).into_response())
 }
-
-
 
 // ----- Helpers -----------------------------
 fn build_oauth(state: &AppState) -> Result<GoogleOAuth, AppError> {
@@ -192,7 +181,6 @@ async fn fetch_google_profile(
         .map_err(|e| AppError::Internal(anyhow::anyhow!(e)))
 }
 
-
 // Parse a specific cookie value from the Cookie header
 fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     headers
@@ -206,7 +194,6 @@ fn get_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
         })
 }
 
-
 /// Derive a unique org slug from the user's email.
 /// Appends a UUID fragment to avoid collisions.
 fn org_slug_from_email(email: &str) -> String {
@@ -216,7 +203,7 @@ fn org_slug_from_email(email: &str) -> String {
         .unwrap_or("org")
         .to_lowercase()
         .chars()
-        .map(|c| if c.is_alphanumeric() {c} else {'-'})
+        .map(|c| if c.is_alphanumeric() { c } else { '-' })
         .collect::<String>();
 
     format!("{base}-{}", &Uuid::new_v4().to_string()[..8])

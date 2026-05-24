@@ -1,7 +1,7 @@
 use apalis::prelude::{BoxDynError, Data};
 use lettre::{
-    message::header::ContentType, transport::smtp::authentication::Credentials,
-    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
+    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor, message::header::ContentType,
+    transport::smtp::authentication::Credentials,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -50,10 +50,7 @@ async fn send(job: SendReportJob, ctx: &JobContext) -> Result<()> {
         .await
         .map_err(|_| Error::NotFound)?;
 
-    let subject = format!(
-        "Analysis ready: {}",
-        analysis.description
-    );
+    let subject = format!("Analysis ready: {}", analysis.description);
 
     let relative_pct = result.relative_effect * 100.0;
     let direction = if relative_pct >= 0.0 { "+" } else { "" };
@@ -68,29 +65,25 @@ async fn send(job: SendReportJob, ctx: &JobContext) -> Result<()> {
         Confidence: {probability_pct}% probability this effect is real\n\n\
         {narrative}\n\n\
         Log in to view the full chart and export your client report.",
-        description    = analysis.description,
-        metric         = analysis.metric,
-        date           = analysis.intervention_date,
-        direction      = direction,
-        relative_pct   = relative_pct,
+        description = analysis.description,
+        metric = analysis.metric,
+        date = analysis.intervention_date,
+        direction = direction,
+        relative_pct = relative_pct,
         probability_pct = probability_pct,
-        narrative      = result.narrative,
+        narrative = result.narrative,
     );
 
     let email = Message::builder()
         .from(
             smtp.from_address
                 .parse()
-                .map_err(|e: lettre::address::AddressError| {
-                    Error::Email(e.to_string())
-                })?,
+                .map_err(|e: lettre::address::AddressError| Error::Email(e.to_string()))?,
         )
         .to(user
             .email
             .parse()
-            .map_err(|e: lettre::address::AddressError| {
-                Error::Email(e.to_string())
-            })?)
+            .map_err(|e: lettre::address::AddressError| Error::Email(e.to_string()))?)
         .subject(subject)
         .header(ContentType::TEXT_PLAIN)
         .body(body)
@@ -98,7 +91,10 @@ async fn send(job: SendReportJob, ctx: &JobContext) -> Result<()> {
 
     let mailer = AsyncSmtpTransport::<Tokio1Executor>::relay(&smtp.host)
         .map_err(|e| Error::Email(e.to_string()))?
-        .credentials(Credentials::new(smtp.username.clone(), smtp.password.clone()))
+        .credentials(Credentials::new(
+            smtp.username.clone(),
+            smtp.password.clone(),
+        ))
         .build();
 
     mailer

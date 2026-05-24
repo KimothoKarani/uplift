@@ -22,10 +22,7 @@ pub async fn handle(
     refresh(job, &ctx).await.map_err(Into::into)
 }
 
-async fn refresh(
-    job: RefreshTokensJob,
-    ctx: &JobContext
-) -> Result<()> {
+async fn refresh(job: RefreshTokensJob, ctx: &JobContext) -> Result<()> {
     tracing::info!(
         connection_id = %job.connection_id, "checking token expiry"
     );
@@ -55,23 +52,31 @@ async fn refresh(
     );
 
     let oauth = GoogleOAuth::new(
-        ctx.google_client_id.clone(), 
-        ctx.google_client_secret.clone(), 
+        ctx.google_client_id.clone(),
+        ctx.google_client_secret.clone(),
         ctx.google_redirect_uri.clone(),
     )
-    .map_err(|e| Error::TokenRefresh { connection_id: conn.id, reason: e.to_string() })?;
+    .map_err(|e| Error::TokenRefresh {
+        connection_id: conn.id,
+        reason: e.to_string(),
+    })?;
 
     let fresh = oauth
         .refresh(&conn.refresh_token, &ctx.http)
         .await
-        .map_err(|e| Error::TokenRefresh { connection_id: conn.id, reason: e.to_string() })?;
+        .map_err(|e| Error::TokenRefresh {
+            connection_id: conn.id,
+            reason: e.to_string(),
+        })?;
 
     ConnectionRepo::update_access_token(
         &ctx.pool,
         &ctx.cipher,
         conn.id,
         &fresh.access_token,
-        fresh.expires_at).await?;
+        fresh.expires_at,
+    )
+    .await?;
 
     tracing::info!(
         connection_id = %conn.id,

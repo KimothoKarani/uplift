@@ -1,9 +1,9 @@
 use axum::{
+    Router,
     body::Bytes,
     extract::State,
     http::{HeaderMap, StatusCode},
     routing::post,
-    Router,
 };
 use chrono::{DateTime, Utc};
 use stripe::{EventObject, EventType, Webhook};
@@ -99,8 +99,15 @@ async fn handle_checkout_completed(
     // with the real period end and correct tier.
     let period_end = Utc::now() + chrono::Duration::days(30);
 
-    SubscriptionRepo::upsert(&state.pool, org_id, &stripe_sub_id, "starter", "active", period_end)
-        .await?;
+    SubscriptionRepo::upsert(
+        &state.pool,
+        org_id,
+        &stripe_sub_id,
+        "starter",
+        "active",
+        period_end,
+    )
+    .await?;
 
     tracing::info!(org_id = %org_id, "subscription activated via checkout");
     Ok(())
@@ -121,8 +128,7 @@ async fn handle_subscription_updated(
 
     let status = subscription_status_str(&sub.status);
     let tier = tier_from_items(&sub);
-    let period_end = DateTime::from_timestamp(sub.current_period_end, 0)
-        .unwrap_or_else(Utc::now);
+    let period_end = DateTime::from_timestamp(sub.current_period_end, 0).unwrap_or_else(Utc::now);
 
     SubscriptionRepo::upsert(
         &state.pool,
@@ -153,8 +159,7 @@ async fn handle_subscription_deleted(
         .await
         .map_err(|_| AppError::NotFound)?;
 
-    let period_end = DateTime::from_timestamp(sub.current_period_end, 0)
-        .unwrap_or_else(Utc::now);
+    let period_end = DateTime::from_timestamp(sub.current_period_end, 0).unwrap_or_else(Utc::now);
 
     SubscriptionRepo::upsert(
         &state.pool,
@@ -170,10 +175,7 @@ async fn handle_subscription_deleted(
     Ok(())
 }
 
-async fn handle_payment_failed(
-    state: &AppState,
-    invoice: stripe::Invoice,
-) -> Result<(), AppError> {
+async fn handle_payment_failed(state: &AppState, invoice: stripe::Invoice) -> Result<(), AppError> {
     let stripe_sub_id = match &invoice.subscription {
         Some(sub) => sub.id().to_string(),
         None => return Ok(()),
@@ -198,8 +200,8 @@ async fn handle_payment_failed(
 }
 
 fn tier_from_price_id(price_id: &str) -> &'static str {
-    let starter    = std::env::var("STRIPE_STARTER_PRICE_ID").unwrap_or_default();
-    let agency     = std::env::var("STRIPE_AGENCY_PRICE_ID").unwrap_or_default();
+    let starter = std::env::var("STRIPE_STARTER_PRICE_ID").unwrap_or_default();
+    let agency = std::env::var("STRIPE_AGENCY_PRICE_ID").unwrap_or_default();
     let agency_pro = std::env::var("STRIPE_AGENCY_PRO_PRICE_ID").unwrap_or_default();
 
     if !agency_pro.is_empty() && price_id == agency_pro {
@@ -225,13 +227,13 @@ fn tier_from_items(sub: &stripe::Subscription) -> &'static str {
 
 fn subscription_status_str(status: &stripe::SubscriptionStatus) -> &'static str {
     match status {
-        stripe::SubscriptionStatus::Active            => "active",
-        stripe::SubscriptionStatus::PastDue           => "past_due",
-        stripe::SubscriptionStatus::Canceled          => "canceled",
-        stripe::SubscriptionStatus::Trialing          => "trialing",
-        stripe::SubscriptionStatus::Incomplete        => "incomplete",
+        stripe::SubscriptionStatus::Active => "active",
+        stripe::SubscriptionStatus::PastDue => "past_due",
+        stripe::SubscriptionStatus::Canceled => "canceled",
+        stripe::SubscriptionStatus::Trialing => "trialing",
+        stripe::SubscriptionStatus::Incomplete => "incomplete",
         stripe::SubscriptionStatus::IncompleteExpired => "incomplete_expired",
-        stripe::SubscriptionStatus::Unpaid            => "unpaid",
-        _                                             => "active",
+        stripe::SubscriptionStatus::Unpaid => "unpaid",
+        _ => "active",
     }
 }

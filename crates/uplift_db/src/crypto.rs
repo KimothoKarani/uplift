@@ -1,8 +1,8 @@
 use aes_gcm::{
-    aead::{Aead, AeadCore, KeyInit, OsRng},
     Aes256Gcm, Nonce,
+    aead::{Aead, AeadCore, KeyInit, OsRng},
 };
-use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 
 use crate::error::{Error, Result};
 
@@ -24,8 +24,7 @@ impl Cipher {
             )));
         }
 
-        let cipher =  Aes256Gcm::new_from_slice(&bytes)
-            .map_err(|e| Error::Crypto(e.to_string()))?;
+        let cipher = Aes256Gcm::new_from_slice(&bytes).map_err(|e| Error::Crypto(e.to_string()))?;
 
         Ok(Self(cipher))
     }
@@ -65,6 +64,4 @@ impl Cipher {
 
         String::from_utf8(plaintext).map_err(|e| Error::Crypto(e.to_string()))
     }
-
 }
-

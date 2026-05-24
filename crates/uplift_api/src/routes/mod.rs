@@ -4,7 +4,7 @@ pub mod health;
 pub mod properties;
 pub mod stripe_webhooks;
 
-use axum::{middleware, routing::get, Router};
+use axum::{Router, middleware, routing::get};
 
 use crate::{middleware as mw, state::AppState};
 

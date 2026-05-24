@@ -1,8 +1,8 @@
 use axum::{
+    Extension, Json, Router,
     extract::{Path, State},
     http::StatusCode,
     routing::{delete, get},
-    Extension, Json, Router,
 };
 use serde::Deserialize;
 use uuid::Uuid;
@@ -19,20 +19,16 @@ pub fn router() -> Router<AppState> {
 
 /// Separate router for /api/connections - mounted by routes/mod.rs
 pub fn connections_router() -> Router<AppState> {
-    Router::new()
-        .route("/", get(list_connections))
+    Router::new().route("/", get(list_connections))
 }
-
 
 // ------ Properties -------
 async fn list_properties(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
 ) -> Result<Json<Vec<Property>>, AppError> {
-    let properties = PropertyRepo::list_by_org(
-        &state.pool,
-        auth_user.0.organization_id).await?;
-        Ok(Json(properties))
+    let properties = PropertyRepo::list_by_org(&state.pool, auth_user.0.organization_id).await?;
+    Ok(Json(properties))
 }
 
 #[derive(Deserialize)]
@@ -63,8 +59,9 @@ async fn connect_property(
         req.connection_id,
         &req.ga4_property_id,
         &req.display_name,
-    req.website_url.as_deref(),
-    ).await?;
+        req.website_url.as_deref(),
+    )
+    .await?;
 
     Ok((StatusCode::CREATED, Json(property)))
 }
@@ -90,7 +87,10 @@ pub struct ConnectionView {
 
 impl From<Connection> for ConnectionView {
     fn from(c: Connection) -> Self {
-        Self { id: c.id, google_account_email: c.google_account_email }
+        Self {
+            id: c.id,
+            google_account_email: c.google_account_email,
+        }
     }
 }
 
@@ -98,9 +98,11 @@ async fn list_connections(
     State(state): State<AppState>,
     Extension(auth_user): Extension<AuthUser>,
 ) -> Result<Json<Vec<ConnectionView>>, AppError> {
-    let connections = 
+    let connections =
         ConnectionRepo::list_by_org(&state.pool, &state.cipher, auth_user.0.organization_id)
             .await?;
 
-    Ok(Json(connections.into_iter().map(ConnectionView::from).collect()))
+    Ok(Json(
+        connections.into_iter().map(ConnectionView::from).collect(),
+    ))
 }

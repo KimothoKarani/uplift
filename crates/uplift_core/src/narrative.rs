@@ -47,6 +47,4 @@ pub fn generate(report: &ImpactReport, metric: &str) -> String {
         variation, placing confidence at {confidence_word}. The 95% confidence\
         interval on the cumulative effect ranges from {ci}."
     )
-
-
 }

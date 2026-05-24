@@ -15,13 +15,19 @@ pub enum Error {
     NotFound,
 
     #[error("analysis {id} is in unexpected status '{status}'")]
-    BadStatus {id: uuid::Uuid, status: String},
+    BadStatus { id: uuid::Uuid, status: String },
 
     #[error("no time series data available for property {property_id}, metric '{metric}'")]
-    NoData{property_id: uuid::Uuid, metric: String},
+    NoData {
+        property_id: uuid::Uuid,
+        metric: String,
+    },
 
     #[error("token refresh failed for connection {connection_id}: {reason}")]
-    TokenRefresh {connection_id: uuid::Uuid, reason: String},
+    TokenRefresh {
+        connection_id: uuid::Uuid,
+        reason: String,
+    },
 
     #[error("email send failed: {0}")]
     Email(String),

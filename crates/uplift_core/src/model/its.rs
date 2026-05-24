@@ -25,7 +25,7 @@ fn build_design_matrix(n: usize, t_offset: usize) -> DMatrix<f64> {
             5 => (2.0 * two_pi * t / FOURIER_PERIOD).cos(),
             _ => {
                 unreachable!()
-            },
+            }
         }
     })
 }
@@ -34,7 +34,10 @@ impl ItsModel {
     pub fn fit(pre_period: &TimeSeries) -> Result<Self> {
         let n = pre_period.len();
         if n < MIN_PRE_PERIOD {
-            return Err(Error::InsufficientData { min: MIN_PRE_PERIOD, got: n });
+            return Err(Error::InsufficientData {
+                min: MIN_PRE_PERIOD,
+                got: n,
+            });
         }
 
         let x = build_design_matrix(n, 0);
@@ -51,7 +54,11 @@ impl ItsModel {
         let fitted = &x * &coefficients;
         let residuals = (0..n).map(|i| y[i] - fitted[i]).collect();
 
-        Ok(Self { coefficients, residuals, pre_period_len: n })
+        Ok(Self {
+            coefficients,
+            residuals,
+            pre_period_len: n,
+        })
     }
 
     pub fn predict(&self, n_post: usize) -> Vec<f64> {

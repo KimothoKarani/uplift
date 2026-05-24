@@ -90,7 +90,7 @@ pub async fn enqueue_run_analysis(
 ) -> anyhow::Result<()> {
     // use apalis::prelude::Backend;
 
-    let mut storage: PostgresStorage<run_analysis::RunAnalysisJob> = 
+    let mut storage: PostgresStorage<run_analysis::RunAnalysisJob> =
         PostgresStorage::new(pool.clone());
 
     storage

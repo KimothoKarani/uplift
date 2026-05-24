@@ -1,16 +1,21 @@
-use crate::error::{Error, Result};
 use super::series::TimeSeries;
+use crate::error::{Error, Result};
 
 /// Replace each value with its natural log. Useful when data spans
 /// several orders of magnitude (e.g. pageviews). Fails if any value <= 0.
 pub fn log_transform(series: &TimeSeries) -> Result<Vec<f64>> {
-    series.values().map(|v| {
-        if v <= 0.0 {
-            Err(Error::NumericalError(format!("log of non-positive value: {v}")))
-        } else {
-            Ok(v.ln())
-        }
-    }).collect()
+    series
+        .values()
+        .map(|v| {
+            if v <= 0.0 {
+                Err(Error::NumericalError(format!(
+                    "log of non-positive value: {v}"
+                )))
+            } else {
+                Ok(v.ln())
+            }
+        })
+        .collect()
 }
 
 /// Subtract each value from the previous one. Removes a linear trend
@@ -28,9 +33,10 @@ pub fn normalize(series: &TimeSeries) -> Result<Vec<f64>> {
     let range = max - min;
 
     if range == 0.0 {
-        return Err(Error::NumericalError("cannot normalize a constant series".into()));
+        return Err(Error::NumericalError(
+            "cannot normalize a constant series".into(),
+        ));
     }
 
     Ok(vals.iter().map(|v| (v - min) / range).collect())
 }
-

@@ -26,8 +26,9 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(pool: PgPool, cipher: Cipher, http: Client, cfg: AppConfig) -> Self{
-        Self { pool,
+    pub fn new(pool: PgPool, cipher: Cipher, http: Client, cfg: AppConfig) -> Self {
+        Self {
+            pool,
             cipher,
             http,
             google_client_id: cfg.google_client_id,
@@ -87,7 +88,7 @@ fn require_env(key: &str) -> String {
 impl AppConfig {
     /// Build SmtpConfig only if all four SMTP vars are present.
     /// If any is missing, email is disabled - no crash.
-    pub fn smtp_config(&self) -> Option<SmtpConfig>{
+    pub fn smtp_config(&self) -> Option<SmtpConfig> {
         Some(SmtpConfig {
             host: self.smtp_host.clone()?,
             username: self.smtp_username.clone()?,

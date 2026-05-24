@@ -16,7 +16,7 @@ pub fn into_timeseries(
 
     let points = filled
         .into_iter()
-        .map(|(date, value)| DataPoint{
+        .map(|(date, value)| DataPoint {
             timestamp: date.and_time(NaiveTime::MIN).and_utc(),
             value,
         })
@@ -51,5 +51,4 @@ fn fill_gaps(mut points: Vec<(NaiveDate, f64)>) -> Vec<(NaiveDate, f64)> {
     }
 
     result
-
 }
