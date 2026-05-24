@@ -1,696 +1,446 @@
 use leptos::prelude::*;
-use leptos_meta::Title;
+use leptos_router::components::Redirect;
 use leptos_router::hooks::use_params_map;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::components::nav::AppLayout;
-use crate::server_utils::extract_session_id;
+use crate::components::Shell;
 
-// ── Data types ─────────────────────────────────────────────────────────────
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct AnalysisPageData {
-    pub org_name: String,
-    pub user_name: String,
-    pub user_email: String,
-    pub info: AnalysisInfo,
-    pub result: Option<ResultData>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct AnalysisInfo {
-    pub property_name: String,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnalysisView {
+    pub id: Uuid,
+    pub description: String,
     pub metric: String,
     pub status: String,
     pub intervention_date: String,
-    pub pre_period: String,
-    pub post_period: String,
-    pub description: String,
+    pub pre_period_start: String,
+    pub pre_period_end: String,
+    pub post_period_start: String,
+    pub post_period_end: String,
+    pub created_at: String,
+    pub property_name: String,
     pub error_message: Option<String>,
+    pub result: Option<AnalysisResultView>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ResultData {
-    pub relative_effect: String,
-    pub relative_effect_ci: String,
-    pub probability: String,
-    pub cumulative_effect: String,
-    pub cumulative_effect_ci: String,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AnalysisResultView {
+    pub cumulative_effect: f64,
+    pub cumulative_effect_lower: f64,
+    pub cumulative_effect_upper: f64,
+    pub relative_effect: f64,
+    pub probability_of_effect: f64,
     pub narrative: String,
-    // [[timestamp_ms, value], ...] — pre-period actual from DB
-    pub pre_points: Vec<[f64; 2]>,
-    // [[timestamp_ms, actual, counterfactual, cf_lower, cf_upper], ...] — post-period
-    pub post_points: Vec<[f64; 5]>,
-    pub intervention_ts: f64,
+    pub chart_actual: Vec<f64>,
+    pub chart_counterfactual: Vec<f64>,
+    pub intervention_index: usize,
 }
 
-// ── Server function ────────────────────────────────────────────────────────
+#[server(LoadAnalysis)]
+pub async fn load_analysis(id: String) -> Result<AnalysisView, ServerFnError> {
+    use crate::server_utils::require_user;
+    use leptos::context::use_context;
+    use sqlx::PgPool;
+    use uplift_db::{AnalysisRepo, PropertyRepo};
+    use uplift_core::impact::report::PointwiseEffect;
 
-#[server]
-pub async fn load_analysis(id: String) -> Result<AnalysisPageData, ServerFnError> {
-    use axum::http::HeaderMap;
-    use leptos_axum::extract;
-    use uplift_db::{
-        AnalysisRepo, OrgRepo, PgPool, PropertyRepo, SessionRepo, TimeSeriesRepo, UserRepo,
-    };
+    let user = require_user().await?;
+    let pool = use_context::<PgPool>()
+        .ok_or_else(|| ServerFnError::new("no db pool in context"))?;
 
-    let pool = expect_context::<PgPool>();
-    let headers: HeaderMap = extract().await?;
-
-    let session_id = extract_session_id(&headers).ok_or_else(|| {
-        leptos_axum::redirect("/login");
-        ServerFnError::new("not authenticated")
-    })?;
-
-    let session = SessionRepo::find_valid(&pool, session_id)
-        .await
-        .map_err(|_| {
-            leptos_axum::redirect("/login");
-            ServerFnError::new("session expired")
-        })?;
-
-    let user = UserRepo::find_by_id(&pool, session.user_id)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-    let org = OrgRepo::find_by_id(&pool, user.organization_id)
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-    let analysis_id = id
-        .parse::<Uuid>()
+    let analysis_id: Uuid = id
+        .parse()
         .map_err(|_| ServerFnError::new("invalid analysis id"))?;
 
-    let analysis = AnalysisRepo::find_by_id(&pool, analysis_id, org.id)
+    let analysis = AnalysisRepo::find_by_id(&pool, analysis_id, user.organization_id)
         .await
         .map_err(|_| ServerFnError::new("analysis not found"))?;
 
-    let property = PropertyRepo::find_by_id(&pool, analysis.property_id, org.id)
+    let property_name = PropertyRepo::find_by_id(&pool, analysis.property_id, user.organization_id)
         .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?;
+        .map(|p| p.display_name)
+        .unwrap_or_else(|_| "Unknown".into());
 
-    let user_name = user
-        .display_name
-        .unwrap_or_else(|| user.email.split('@').next().unwrap_or("User").to_string());
+    let result = AnalysisRepo::get_result(&pool, analysis_id).await.ok().map(|r| {
+        let pointwise: Vec<PointwiseEffect> =
+            serde_json::from_value(r.pointwise_effects).unwrap_or_default();
 
-    let info = AnalysisInfo {
-        property_name: property.display_name,
-        metric: fmt_metric(&analysis.metric),
-        status: analysis.status.clone(),
-        intervention_date: analysis.intervention_date.format("%b %d, %Y").to_string(),
-        pre_period: format!(
-            "{} – {}",
-            analysis.pre_period_start.format("%b %d, %Y"),
-            analysis.pre_period_end.format("%b %d, %Y"),
-        ),
-        post_period: format!(
-            "{} – {}",
-            analysis.post_period_start.format("%b %d, %Y"),
-            analysis.post_period_end.format("%b %d, %Y"),
-        ),
-        description: analysis.description.clone(),
-        error_message: analysis.error_message.clone(),
-    };
+        let intervention = analysis.intervention_date;
+        let intervention_index = pointwise
+            .iter()
+            .position(|p| p.timestamp.date_naive() >= intervention)
+            .unwrap_or(pointwise.len() / 2);
 
-    let result = if analysis.status == "complete" {
-        match AnalysisRepo::get_result(&pool, analysis.id).await.ok() {
-            None => None,
-            Some(r) => {
-                // Deserialise the stored pointwise JSON back to the core type
-                let pointwise: Vec<uplift_core::impact::report::PointwiseEffect> =
-                    serde_json::from_value(r.pointwise_effects)
-                        .map_err(|e| ServerFnError::new(e.to_string()))?;
+        let chart_actual = pointwise.iter().map(|p| p.actual).collect();
+        let chart_counterfactual = pointwise.iter().map(|p| p.counterfactual).collect();
 
-                // Pre-period actual values from the time-series cache
-                let pre_ts = TimeSeriesRepo::get_range(
-                    &pool,
-                    analysis.property_id,
-                    &analysis.metric,
-                    analysis.pre_period_start,
-                    analysis.pre_period_end,
-                )
-                .await
-                .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-                let pre_points: Vec<[f64; 2]> = pre_ts
-                    .points
-                    .iter()
-                    .map(|p| [p.timestamp.timestamp_millis() as f64, p.value])
-                    .collect();
-
-                // Post-period: actual + counterfactual + uncertainty band.
-                // From the analysis code:
-                //   effect_lower = effect - r_hi  →  cf_upper = actual - effect_lower
-                //   effect_upper = effect - r_lo  →  cf_lower = actual - effect_upper
-                let post_points: Vec<[f64; 5]> = pointwise
-                    .iter()
-                    .map(|p| {
-                        let cf_upper = p.actual - p.effect_lower;
-                        let cf_lower = p.actual - p.effect_upper;
-                        [
-                            p.timestamp.timestamp_millis() as f64,
-                            p.actual,
-                            p.counterfactual,
-                            cf_lower,
-                            cf_upper,
-                        ]
-                    })
-                    .collect();
-
-                let intervention_ts = analysis
-                    .intervention_date
-                    .and_hms_opt(0, 0, 0)
-                    .unwrap()
-                    .and_utc()
-                    .timestamp_millis() as f64;
-
-                let pct = |v: f64| {
-                    if v >= 0.0 {
-                        format!("+{:.1}%", v * 100.0)
-                    } else {
-                        format!("{:.1}%", v * 100.0)
-                    }
-                };
-                let num = |v: f64| {
-                    if v >= 0.0 {
-                        format!("+{:.0}", v)
-                    } else {
-                        format!("{:.0}", v)
-                    }
-                };
-
-                Some(ResultData {
-                    relative_effect: pct(r.relative_effect),
-                    relative_effect_ci: format!(
-                        "{} to {}",
-                        pct(r.relative_effect_lower),
-                        pct(r.relative_effect_upper),
-                    ),
-                    probability: format!("{:.0}%", r.probability_of_effect * 100.0),
-                    cumulative_effect: num(r.cumulative_effect),
-                    cumulative_effect_ci: format!(
-                        "{} to {}",
-                        num(r.cumulative_effect_lower),
-                        num(r.cumulative_effect_upper),
-                    ),
-                    narrative: r.narrative,
-                    pre_points,
-                    post_points,
-                    intervention_ts,
-                })
-            }
+        AnalysisResultView {
+            cumulative_effect: r.cumulative_effect,
+            cumulative_effect_lower: r.cumulative_effect_lower,
+            cumulative_effect_upper: r.cumulative_effect_upper,
+            relative_effect: r.relative_effect,
+            probability_of_effect: r.probability_of_effect,
+            narrative: r.narrative,
+            chart_actual,
+            chart_counterfactual,
+            intervention_index,
         }
-    } else {
-        None
-    };
+    });
 
-    Ok(AnalysisPageData {
-        org_name: org.name,
-        user_name,
-        user_email: user.email,
-        info,
+    Ok(AnalysisView {
+        id: analysis.id,
+        description: analysis.description,
+        metric: analysis.metric,
+        status: analysis.status,
+        intervention_date: analysis.intervention_date.to_string(),
+        pre_period_start: analysis.pre_period_start.to_string(),
+        pre_period_end: analysis.pre_period_end.to_string(),
+        post_period_start: analysis.post_period_start.to_string(),
+        post_period_end: analysis.post_period_end.to_string(),
+        created_at: analysis.created_at.format("%b %d, %Y %H:%M UTC").to_string(),
+        property_name,
+        error_message: analysis.error_message,
         result,
     })
 }
 
-fn fmt_metric(raw: &str) -> String {
-    match raw {
-        "sessions"        => "Sessions",
-        "activeUsers"     => "Active Users",
-        "newUsers"        => "New Users",
-        "screenPageViews" => "Page Views",
-        "conversions"     => "Conversions",
-        "totalRevenue"    => "Revenue",
-        "engagementRate"  => "Engagement Rate",
-        other             => other,
-    }
-    .to_string()
-}
-
-// ── Page component ─────────────────────────────────────────────────────────
-
 #[component]
-pub fn AnalysisResultPage() -> impl IntoView {
+pub fn AnalysisPage() -> impl IntoView {
     let params = use_params_map();
-    let analysis_id =
-        move || params.with(|p| p.get("id").unwrap_or_default());
-
-    let data = Resource::new(analysis_id, |id| load_analysis(id));
+    let id = move || params.get().get("id").unwrap_or_default();
+    let data = Resource::new(id, |id| load_analysis(id));
 
     view! {
-        <Title text="Analysis — Uplift"/>
-        <Suspense fallback=ResultSkeleton>
-            {move || data.get().map(|r| match r {
-                Err(_) => view! {
-                    <div class="min-h-screen flex items-center justify-center">
-                        <p class="text-sm text-gray-400">"Redirecting…"</p>
-                    </div>
-                }.into_any(),
-                Ok(d) => view! { <ResultPage data=d/> }.into_any(),
-            })}
-        </Suspense>
+        <Shell>
+            <Suspense fallback=AnalysisSkeleton>
+                {move || {
+                    data.get().map(|result| match result {
+                        Err(_) => view! { <Redirect path="/login"/> }.into_any(),
+                        Ok(a) => view! { <AnalysisDetail analysis=a/> }.into_any(),
+                    })
+                }}
+            </Suspense>
+        </Shell>
     }
 }
 
 #[component]
-fn ResultPage(data: AnalysisPageData) -> impl IntoView {
-    let status      = data.info.status.clone();
-    let processing  = status == "pending" || status == "running";
+fn AnalysisDetail(analysis: AnalysisView) -> impl IntoView {
+    let (status_dot, status_badge) = match analysis.status.as_str() {
+        "complete" => ("bg-green-500", "text-green-700 bg-green-50"),
+        "failed" => ("bg-red-400", "text-red-700 bg-red-50"),
+        "running" => ("bg-blue-500", "text-blue-700 bg-blue-50"),
+        _ => ("bg-yellow-400", "text-yellow-700 bg-yellow-50"),
+    };
 
     view! {
-        // Auto-refresh while the job is running — no JS framework needed
-        {processing.then(|| view! {
-            <script>"setTimeout(()=>location.reload(),8000);"</script>
-        })}
+        <div class="px-8 py-7">
+            // ── Breadcrumb ────────────────────────────────────────
+            <a href="/dashboard" class="inline-flex items-center gap-1.5 text-[12px] text-gray-400 hover:text-gray-600 mb-5 transition-colors">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"/>
+                </svg>
+                "All analyses"
+            </a>
 
-        <AppLayout
-            org_name=data.org_name
-            user_name=data.user_name
-            user_email=data.user_email
-        >
-            // Breadcrumb
-            <div class="mb-6">
-                <a href="/dashboard"
-                   class="text-sm text-gray-500 hover:text-gray-700 transition-colors">
-                    "← Dashboard"
-                </a>
-            </div>
-
-            // Header
-            <div class="flex items-start justify-between mb-8">
+            // ── Header ────────────────────────────────────────────
+            <div class="flex items-start justify-between gap-4 mb-6">
                 <div>
-                    <div class="flex items-center gap-2 mb-1">
-                        <span class="text-sm text-gray-500">{data.info.property_name.clone()}</span>
-                        <span class="text-gray-300">"/"</span>
-                        <span class="text-sm font-medium text-gray-700">{data.info.metric.clone()}</span>
+                    <h1 class="text-xl font-bold text-gray-900">{analysis.description.clone()}</h1>
+                    <div class="flex items-center gap-3 mt-1.5">
+                        <span class="text-[11px] font-medium text-gray-400 bg-gray-100 px-2 py-0.5 rounded-md">
+                            {analysis.property_name}
+                        </span>
+                        <span class="text-[12px] font-mono text-gray-400">{analysis.metric.clone()}</span>
+                        <span class="text-[12px] text-gray-400">{analysis.created_at}</span>
                     </div>
-                    <h1 class="text-2xl font-bold tracking-tight text-gray-900">
-                        "Impact Analysis"
-                    </h1>
-                    {(!data.info.description.is_empty()).then(|| view! {
-                        <p class="mt-1 text-sm text-gray-500">{data.info.description.clone()}</p>
-                    })}
                 </div>
-                <StatusBadge status=status.clone()/>
+                <span class=format!("flex-shrink-0 flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-full {}", status_badge)>
+                    <span class=format!("w-2 h-2 rounded-full {}", status_dot)/>
+                    {analysis.status.clone()}
+                </span>
             </div>
 
-            {match status.as_str() {
+            // ── Meta grid ─────────────────────────────────────────
+            <div class="grid grid-cols-4 gap-4 mb-6">
+                <MetaCard label="Intervention" value=analysis.intervention_date.clone()/>
+                <MetaCard
+                    label="Pre-period"
+                    value=format!("{} – {}", analysis.pre_period_start, analysis.pre_period_end)
+                />
+                <MetaCard
+                    label="Post-period"
+                    value=format!("{} – {}", analysis.post_period_start, analysis.post_period_end)
+                />
+                <MetaCard label="Metric" value=analysis.metric.clone()/>
+            </div>
+
+            // ── Body based on status ──────────────────────────────
+            {match analysis.status.as_str() {
                 "pending" | "running" => view! {
-                    <ProcessingCard status=status.clone()/>
+                    <div class="bg-white rounded-2xl border border-gray-100 p-12 text-center">
+                        <div class="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4"/>
+                        <p class="text-[13px] font-semibold text-gray-700">"Analysis is running"</p>
+                        <p class="text-[12px] text-gray-400 mt-1">
+                            "The model is fetching your GA4 data and fitting the Bayesian ITS model."
+                        </p>
+                        <p class="text-[11px] text-gray-300 mt-3">"Refresh this page in a few minutes."</p>
+                    </div>
                 }.into_any(),
                 "failed" => view! {
-                    <FailedCard info=data.info.clone()/>
+                    <div class="bg-red-50 rounded-2xl border border-red-100 p-6">
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                                <svg class="w-4 h-4 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <line x1="15" y1="9" x2="9" y2="15"/>
+                                    <line x1="9" y1="9" x2="15" y2="15"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-sm font-semibold text-red-800">"Analysis failed"</p>
+                                <p class="text-[12px] text-red-600 mt-1">
+                                    {analysis.error_message.unwrap_or_else(|| "An unknown error occurred.".into())}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 }.into_any(),
-                _ => match data.result {
-                    Some(result) => view! {
-                        <ResultContent info=data.info result/>
-                    }.into_any(),
-                    None => view! {
-                        <ProcessingCard status="pending".into()/>
-                    }.into_any(),
-                },
+                "complete" => {
+                    if let Some(r) = analysis.result {
+                        view! { <ResultView result=r/> }.into_any()
+                    } else {
+                        view! { <p class="text-sm text-gray-400">"Result data missing."</p> }.into_any()
+                    }
+                }
+                _ => view! { <></> }.into_any(),
             }}
-        </AppLayout>
+        </div>
     }
 }
 
-// ── Status-specific cards ──────────────────────────────────────────────────
-
 #[component]
-fn ProcessingCard(status: String) -> impl IntoView {
-    let (title, body) = if status == "running" {
-        (
-            "Running analysis…",
-            "The Bayesian ITS model is fitting to your data. This usually takes 10–30 seconds.",
-        )
+fn ResultView(result: AnalysisResultView) -> impl IntoView {
+    let pct = result.relative_effect * 100.0;
+    let prob = result.probability_of_effect * 100.0;
+    let sign = if result.cumulative_effect >= 0.0 { "+" } else { "" };
+
+    let confidence_label = if prob >= 95.0 {
+        ("High confidence", "text-green-700 bg-green-50")
+    } else if prob >= 80.0 {
+        ("Medium confidence", "text-yellow-700 bg-yellow-50")
     } else {
-        (
-            "Analysis queued",
-            "Your analysis is waiting to be picked up by the worker. It will start shortly.",
-        )
+        ("Low confidence", "text-gray-600 bg-gray-100")
     };
 
     view! {
-        <div class="bg-white border border-gray-200 rounded-xl p-12 text-center">
-            <div class="flex justify-center mb-5">
-                <div class="w-10 h-10 rounded-full border-[3px] border-brand-100
-                            border-t-brand-600 animate-spin"/>
-            </div>
-            <p class="text-sm font-semibold text-gray-900">{title}</p>
-            <p class="mt-1.5 text-sm text-gray-500 max-w-sm mx-auto">{body}</p>
-            <p class="mt-5 text-xs text-gray-400">"Page refreshes automatically every 8 seconds."</p>
-        </div>
-    }
-}
-
-#[component]
-fn FailedCard(info: AnalysisInfo) -> impl IntoView {
-    view! {
-        <div class="bg-red-50 border border-red-200 rounded-xl p-8">
-            <p class="text-sm font-semibold text-red-800 mb-2">"Analysis failed"</p>
-            {info.error_message.map(|msg| view! {
-                <p class="text-xs text-red-700 font-mono bg-red-100 rounded px-3 py-2 mb-3">
-                    {msg}
-                </p>
-            })}
-            <p class="text-sm text-gray-600">
-                "This is usually caused by insufficient data in the selected period. \
-                 Try a longer pre-period (90+ days gives the most reliable results)."
-            </p>
-            <a href="/analyses/new"
-               class="mt-5 inline-flex text-sm font-medium text-brand-600 hover:text-brand-700">
-                "Run a new analysis →"
-            </a>
-        </div>
-    }
-}
-
-// ── Complete result view ───────────────────────────────────────────────────
-
-#[component]
-fn ResultContent(info: AnalysisInfo, result: ResultData) -> impl IntoView {
-    let positive = !result.relative_effect.starts_with('-');
-
-    view! {
-        // Chart
-        <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
-            <div class="flex items-center justify-between mb-5">
-                <h2 class="text-sm font-semibold text-gray-900">"Time Series"</h2>
-                <div class="flex items-center gap-5 text-xs text-gray-500">
-                    <span class="flex items-center gap-1.5">
-                        <svg width="20" height="2"><line x1="0" y1="1" x2="20" y2="1"
-                            stroke="#4f46e5" stroke-width="2"/></svg>
-                        "Observed"
-                    </span>
-                    <span class="flex items-center gap-1.5">
-                        <svg width="20" height="2"><line x1="0" y1="1" x2="20" y2="1"
-                            stroke="#a5b4fc" stroke-width="1.5" stroke-dasharray="4,2"/></svg>
-                        "Counterfactual"
-                    </span>
-                    <span class="flex items-center gap-1.5">
-                        <span class="inline-block w-5 h-3 bg-indigo-200 opacity-50 rounded-sm"/>
-                        "95% CI"
+        <div class="space-y-5">
+            // ── KPI row ───────────────────────────────────────────
+            <div class="grid grid-cols-3 gap-4">
+                <KpiCard
+                    label="Cumulative effect"
+                    value=format!(
+                        "{}{:.0}",
+                        sign,
+                        result.cumulative_effect,
+                    )
+                    sub=format!(
+                        "95% CI: {}{:.0} – {}{:.0}",
+                        sign, result.cumulative_effect_lower,
+                        sign, result.cumulative_effect_upper,
+                    )
+                    primary=true
+                />
+                <KpiCard
+                    label="Relative effect"
+                    value=format!("{}{:.1}%", if pct >= 0.0 { "+" } else { "" }, pct)
+                    sub="vs. counterfactual baseline".to_string()
+                    primary=false
+                />
+                <div class="bg-white rounded-2xl border border-gray-100 p-5">
+                    <p class="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
+                        "Probability of effect"
+                    </p>
+                    <p class="text-3xl font-bold text-gray-900 mt-2 font-mono">
+                        {format!("{:.1}%", prob)}
+                    </p>
+                    <span class=format!(
+                        "inline-flex items-center mt-2 text-[11px] font-semibold px-2 py-0.5 rounded-full {} {}",
+                        confidence_label.1, "",
+                    )>
+                        {confidence_label.0}
                     </span>
                 </div>
             </div>
-            <ImpactChart
-                pre_points=result.pre_points
-                post_points=result.post_points
-                intervention_ts=result.intervention_ts
-            />
-        </div>
 
-        // Stat cards
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatCard
-                label="Relative Effect"
-                value=result.relative_effect.clone()
-                sub=result.relative_effect_ci.clone()
-                highlight=positive
-            />
-            <StatCard
-                label="Probability"
-                value=result.probability.clone()
-                sub="causal effect exists".into()
-                highlight=true
-            />
-            <StatCard
-                label="Cumulative Effect"
-                value=result.cumulative_effect.clone()
-                sub=result.cumulative_effect_ci.clone()
-                highlight=positive
-            />
-            <StatCard
-                label="Intervention"
-                value=info.intervention_date.clone()
-                sub=info.post_period.clone()
-                highlight=false
-            />
-        </div>
+            // ── Chart ─────────────────────────────────────────────
+            {if !result.chart_actual.is_empty() {
+                view! {
+                    <EffectChart
+                        actual=result.chart_actual
+                        counterfactual=result.chart_counterfactual
+                        intervention_index=result.intervention_index
+                    />
+                }.into_any()
+            } else {
+                view! { <></> }.into_any()
+            }}
 
-        // Narrative
-        <div class="bg-white border border-gray-200 rounded-xl p-6 mb-6">
-            <h2 class="text-sm font-semibold text-gray-900 mb-3">"Summary"</h2>
-            <p class="text-sm text-gray-600 leading-7">{result.narrative}</p>
-        </div>
-
-        // Details
-        <div class="bg-white border border-gray-200 rounded-xl p-6">
-            <h2 class="text-sm font-semibold text-gray-900 mb-4">"Analysis Details"</h2>
-            <dl class="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6">
-                <Detail label="Property"     value=info.property_name/>
-                <Detail label="Metric"       value=info.metric/>
-                <Detail label="Pre-period"   value=info.pre_period/>
-                <Detail label="Post-period"  value=info.post_period/>
-                <Detail label="Intervention" value=info.intervention_date/>
-                <Detail label="Model"        value="ITS v1 — Bayesian Bootstrap".into()/>
-            </dl>
+            // ── Narrative ─────────────────────────────────────────
+            <div class="bg-white rounded-2xl border border-gray-100 p-6">
+                <p class="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">
+                    "Interpretation"
+                </p>
+                <p class="text-[13px] text-gray-700 leading-relaxed">{result.narrative}</p>
+            </div>
         </div>
     }
 }
 
-// ── SVG Impact Chart ───────────────────────────────────────────────────────
-
 #[component]
-fn ImpactChart(
-    pre_points: Vec<[f64; 2]>,
-    post_points: Vec<[f64; 5]>,
-    intervention_ts: f64,
+fn EffectChart(
+    actual: Vec<f64>,
+    counterfactual: Vec<f64>,
+    intervention_index: usize,
 ) -> impl IntoView {
-    const W: f64 = 800.0;
-    const H: f64 = 260.0;
-    const PL: f64 = 54.0; // left padding (Y labels)
-    const PR: f64 = 16.0;
-    const PT: f64 = 14.0;
-    const PB: f64 = 28.0;
-    const PW: f64 = W - PL - PR;
-    const PH: f64 = H - PT - PB;
+    let n = actual.len();
+    if n < 2 {
+        return view! { <></> }.into_any();
+    }
 
-    // X range
-    let t_min = pre_points
-        .first()
-        .map(|p| p[0])
-        .or_else(|| post_points.first().map(|p| p[0]))
-        .unwrap_or(0.0);
-    let t_max = post_points
-        .last()
-        .map(|p| p[0])
-        .or_else(|| pre_points.last().map(|p| p[0]))
-        .unwrap_or(t_min + 1.0);
+    let all: Vec<f64> = actual.iter().chain(counterfactual.iter()).copied().collect();
+    let min_v = all.iter().copied().fold(f64::INFINITY, f64::min);
+    let max_v = all.iter().copied().fold(f64::NEG_INFINITY, f64::max);
 
-    // Y range — include actual + band extremes
-    let all_y: Vec<f64> = pre_points
-        .iter()
-        .map(|p| p[1])
-        .chain(post_points.iter().flat_map(|p| [p[1], p[2], p[3], p[4]]))
-        .collect();
-    let v_min = all_y.iter().cloned().fold(f64::INFINITY, f64::min);
-    let v_max = all_y.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-    let span  = (v_max - v_min).max(1.0);
-    let v_lo  = v_min - span * 0.06;
-    let v_hi  = v_max + span * 0.06;
+    let vw = 560.0_f64;
+    let vh = 140.0_f64;
+    let pad_x = 10.0_f64;
+    let pad_y = 10.0_f64;
+    let range = (max_v - min_v).max(1.0);
 
-    let tx = |t: f64| PL + (t - t_min) / (t_max - t_min) * PW;
-    let ty = |v: f64| PT + (1.0 - (v - v_lo) / (v_hi - v_lo)) * PH;
+    let xi = |i: usize| pad_x + (i as f64) * (vw / (n - 1) as f64);
+    let yi = |v: f64| pad_y + vh * (1.0 - (v - min_v) / range);
 
-    let int_x = tx(intervention_ts);
-
-    // Pre-period actual
-    let pre_d = line_path(pre_points.iter().map(|p| (tx(p[0]), ty(p[1]))));
-
-    // Last pre-period point — used to connect lines at the intervention boundary
-    let last_pre = pre_points.last().map(|p| (tx(p[0]), ty(p[1])));
-
-    // Post-period actual — starts from last pre point for visual continuity
-    let post_actual_d = line_path(
-        last_pre.into_iter()
-            .chain(post_points.iter().map(|p| (tx(p[0]), ty(p[1])))),
-    );
-
-    // Counterfactual — also starts from last pre point
-    let cf_d = line_path(
-        last_pre.into_iter()
-            .chain(post_points.iter().map(|p| (tx(p[0]), ty(p[2])))),
-    );
-
-    // Confidence band polygon
-    let band_d = if post_points.is_empty() {
-        String::new()
-    } else {
-        let upper: Vec<_> = post_points.iter().map(|p| (tx(p[0]), ty(p[4]))).collect();
-        let lower: Vec<_> = post_points.iter().map(|p| (tx(p[0]), ty(p[3]))).collect();
-        let mut d = format!("M {:.1},{:.1}", upper[0].0, upper[0].1);
-        for (x, y) in &upper[1..] { d.push_str(&format!(" L {x:.1},{y:.1}")); }
-        for (x, y) in lower.iter().rev() { d.push_str(&format!(" L {x:.1},{y:.1}")); }
-        d + " Z"
+    let path = |series: &[f64]| -> String {
+        series
+            .iter()
+            .enumerate()
+            .map(|(i, &v)| {
+                if i == 0 {
+                    format!("M {:.1} {:.1}", xi(i), yi(v))
+                } else {
+                    format!("L {:.1} {:.1}", xi(i), yi(v))
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
     };
 
-    // Y axis — 5 evenly spaced ticks
-    let y_ticks: Vec<(f64, String)> = (0..=4)
-        .map(|i| {
-            let v = v_lo + (v_hi - v_lo) * i as f64 / 4.0;
-            (ty(v), abbrev(v))
-        })
-        .collect();
+    let actual_path = path(&actual);
+    let cf_path = path(&counterfactual);
+    let int_x = format!("{:.1}", xi(intervention_index));
+    let vb = format!("0 0 {} {}", vw + pad_x * 2.0, vh + pad_y * 2.0);
 
     view! {
-        <svg
-            viewBox=format!("0 0 {W} {H}")
-            class="w-full"
-            aria-label="Causal impact time series"
-        >
-            // Grid lines + Y labels
-            {y_ticks.iter().map(|(yp, label)| {
-                let yp = *yp;
-                let label = label.clone();
-                view! {
-                    <line x1=PL y1=yp x2={W - PR} y2=yp
-                          stroke="#f3f4f6" stroke-width="1"/>
-                    <text x={PL - 5.0} y={yp + 3.5}
-                          text-anchor="end" font-size="10" fill="#9ca3af">
-                        {label}
-                    </text>
-                }
-            }).collect_view()}
+        <div class="bg-white rounded-2xl border border-gray-100 p-6">
+            <p class="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+                "Observed vs. Counterfactual"
+            </p>
+            <p class="text-[11px] text-gray-300 mb-5">
+                "What happened (indigo) vs. what the model predicted without the intervention (orange dashed)"
+            </p>
 
-            // Tinted pre-period area
-            <rect x=PL y=PT width={int_x - PL} height=PH fill="#f9fafb"/>
+            <svg viewBox=vb class="w-full h-auto" style="max-height: 180px">
+                // Intervention vertical line
+                <line
+                    x1=int_x.clone()
+                    y1=format!("{:.1}", pad_y - 4.0)
+                    x2=int_x
+                    y2=format!("{:.1}", vh + pad_y + 4.0)
+                    stroke="#e5e7eb"
+                    stroke-width="1.5"
+                    stroke-dasharray="4 3"
+                />
+                // Counterfactual line (orange, dashed)
+                <path d=cf_path fill="none" stroke="#f97316" stroke-width="1.5" stroke-dasharray="5 3"/>
+                // Actual line (indigo, solid)
+                <path d=actual_path fill="none" stroke="#4f46e5" stroke-width="2"/>
+            </svg>
 
-            // Confidence band
-            {(!band_d.is_empty()).then(|| view! {
-                <path d=band_d fill="#c7d2fe" opacity="0.40"/>
-            })}
-
-            // Pre-period actual (gray)
-            {(!pre_d.is_empty()).then(|| view! {
-                <path d=pre_d fill="none" stroke="#9ca3af" stroke-width="1.5"/>
-            })}
-
-            // Counterfactual dashed (indigo-300)
-            {(!cf_d.is_empty()).then(|| view! {
-                <path d=cf_d fill="none" stroke="#a5b4fc" stroke-width="1.5"
-                      stroke-dasharray="5,3"/>
-            })}
-
-            // Post-period actual (indigo-600) — on top
-            {(!post_actual_d.is_empty()).then(|| view! {
-                <path d=post_actual_d fill="none" stroke="#4f46e5" stroke-width="2"/>
-            })}
-
-            // Intervention marker
-            <line x1=int_x y1=PT x2=int_x y2={PT + PH}
-                  stroke="#374151" stroke-width="1" stroke-dasharray="4,3"/>
-            <text x={int_x + 4.0} y={PT + 11.0} font-size="9" fill="#6b7280">
-                "Intervention"
-            </text>
-
-            // X baseline
-            <line x1=PL y1={PT + PH} x2={W - PR} y2={PT + PH}
-                  stroke="#e5e7eb" stroke-width="1"/>
-        </svg>
+            <div class="flex items-center gap-5 mt-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-5 h-0.5 bg-indigo-600 rounded-full"/>
+                    <span class="text-[11px] text-gray-400">"Observed"</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <svg width="20" height="3" viewBox="0 0 20 3">
+                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#f97316" stroke-width="1.5" stroke-dasharray="5 3"/>
+                    </svg>
+                    <span class="text-[11px] text-gray-400">"Counterfactual"</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <svg width="20" height="3" viewBox="0 0 20 3">
+                        <line x1="0" y1="1.5" x2="20" y2="1.5" stroke="#e5e7eb" stroke-width="1.5" stroke-dasharray="4 3"/>
+                    </svg>
+                    <span class="text-[11px] text-gray-400">"Intervention"</span>
+                </div>
+            </div>
+        </div>
     }
+    .into_any()
 }
-
-fn line_path(mut pts: impl Iterator<Item = (f64, f64)>) -> String {
-    let Some((x0, y0)) = pts.next() else {
-        return String::new();
-    };
-    let mut d = format!("M {x0:.1},{y0:.1}");
-    for (x, y) in pts {
-        d.push_str(&format!(" L {x:.1},{y:.1}"));
-    }
-    d
-}
-
-fn abbrev(v: f64) -> String {
-    let a = v.abs();
-    if a >= 1_000_000.0 {
-        format!("{:.1}M", v / 1_000_000.0)
-    } else if a >= 1_000.0 {
-        format!("{:.1}K", v / 1_000.0)
-    } else {
-        format!("{:.0}", v)
-    }
-}
-
-// ── Shared sub-components ──────────────────────────────────────────────────
 
 #[component]
-fn StatCard(
+fn KpiCard(
     label: &'static str,
     value: String,
     sub: String,
-    highlight: bool,
+    primary: bool,
 ) -> impl IntoView {
-    let value_class = if highlight {
-        "text-green-700"
+    let outer = if primary {
+        "bg-indigo-600 rounded-2xl p-5"
     } else {
-        "text-gray-900"
+        "bg-white rounded-2xl border border-gray-100 p-5"
     };
+    let label_cls = if primary { "text-indigo-200" } else { "text-gray-400" };
+    let value_cls = if primary { "text-white" } else { "text-gray-900" };
+    let sub_cls = if primary { "text-indigo-300" } else { "text-gray-400" };
     view! {
-        <div class="bg-white border border-gray-200 rounded-xl p-5">
-            <p class="text-xs font-medium text-gray-500 uppercase tracking-widest mb-2">
+        <div class=outer>
+            <p class=format!("text-[11px] font-semibold uppercase tracking-wide {}", label_cls)>
                 {label}
             </p>
-            <p class=format!("text-2xl font-bold font-mono {value_class}")>
-                {value}
-            </p>
-            <p class="mt-1 text-xs text-gray-400">{sub}</p>
+            <p class=format!("text-3xl font-bold font-mono mt-2 {}", value_cls)>{value}</p>
+            <p class=format!("text-[11px] mt-1 {}", sub_cls)>{sub}</p>
         </div>
     }
 }
 
 #[component]
-fn Detail(label: &'static str, value: String) -> impl IntoView {
+fn MetaCard(label: &'static str, value: String) -> impl IntoView {
     view! {
-        <div>
-            <dt class="text-xs text-gray-500 mb-0.5">{label}</dt>
-            <dd class="text-sm font-medium text-gray-900">{value}</dd>
+        <div class="bg-white rounded-2xl border border-gray-100 px-4 py-3.5">
+            <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{label}</p>
+            <p class="text-[13px] font-semibold text-gray-900 mt-1 font-mono">{value}</p>
         </div>
     }
 }
 
 #[component]
-fn StatusBadge(status: String) -> impl IntoView {
-    let (ring, text, dot) = match status.as_str() {
-        "complete" => ("bg-green-50 border-green-200", "text-green-700", "bg-green-500"),
-        "running"  => ("bg-blue-50 border-blue-200",   "text-blue-700",  "bg-blue-400"),
-        "failed"   => ("bg-red-50 border-red-200",     "text-red-700",   "bg-red-500"),
-        _          => ("bg-gray-100 border-gray-200",  "text-gray-600",  "bg-gray-400"),
-    };
+fn AnalysisSkeleton() -> impl IntoView {
     view! {
-        <span class=format!(
-            "inline-flex items-center gap-1.5 px-3 py-1 rounded-full \
-             text-xs font-medium border {ring} {text}"
-        )>
-            <span class=format!("w-1.5 h-1.5 rounded-full {dot}")/>
-            {status}
-        </span>
-    }
-}
-
-// ── Loading skeleton ───────────────────────────────────────────────────────
-
-#[component]
-fn ResultSkeleton() -> impl IntoView {
-    view! {
-        <div class="min-h-screen bg-gray-50">
-            <div class="bg-white border-b border-gray-200 h-14"/>
-            <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-                <div class="h-4 w-24 bg-gray-200 rounded animate-pulse mb-6"/>
-                <div class="h-8 w-56 bg-gray-200 rounded animate-pulse mb-8"/>
-                <div class="bg-white border border-gray-200 rounded-xl h-72
-                            animate-pulse mb-6"/>
-                <div class="grid grid-cols-4 gap-4 mb-6">
-                    {(0..4).map(|_| view! {
-                        <div class="bg-white border border-gray-200 rounded-xl
-                                    h-24 animate-pulse"/>
-                    }).collect_view()}
+        <Shell>
+            <div class="px-8 py-7 space-y-5">
+                <div class="h-5 bg-gray-200 rounded w-24 animate-pulse"/>
+                <div class="h-8 bg-gray-200 rounded-xl w-80 animate-pulse"/>
+                <div class="grid grid-cols-4 gap-4">
+                    {(0..4)
+                        .map(|_| view! { <div class="h-16 bg-gray-200 rounded-2xl animate-pulse"/> })
+                        .collect_view()}
                 </div>
-                <div class="bg-white border border-gray-200 rounded-xl h-40
-                            animate-pulse"/>
+                <div class="h-40 bg-gray-200 rounded-2xl animate-pulse"/>
+                <div class="h-56 bg-gray-200 rounded-2xl animate-pulse"/>
             </div>
-        </div>
+        </Shell>
     }
 }
