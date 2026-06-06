@@ -27,5 +27,3 @@ pg_data/
 # Environment files
 .env.local
 .env.production
-.env.example
-.env.example
