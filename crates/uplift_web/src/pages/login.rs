@@ -73,7 +73,7 @@ pub fn LoginPage() -> impl IntoView {
                 </div>
 
                 <p class="mt-6 text-center text-xs text-gray-400">
-                    "Powered by Bayesian causal inference"
+                    "Causal inference for SEO agencies"
                 </p>
             </div>
 
