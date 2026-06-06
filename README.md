@@ -7,7 +7,7 @@ a chart with a line going up, agencies can now say: "The content hub we launched
 on March 1st caused a statistically significant 23% lift in organic sessions,
 with 94% probability the effect is real and not noise."
 
-Built with Rust end to end — Axum for the API, Leptos for server-side rendered
+Built with Rust end to end. Axum for the API, Leptos for server-side rendered
 UI, SQLx for the database, and Apalis for background jobs. The causal model runs
 inside the same binary with no Python dependency.
 
@@ -62,8 +62,8 @@ uplift/
 ## Prerequisites
 
 - Rust (latest stable) — install via [rustup.rs](https://rustup.rs)
-- Docker — for local Postgres
-- sqlx-cli — for running migrations
+- Docker: for local Postgres
+- sqlx-cli: for running migrations
 
 ```bash
 cargo install sqlx-cli --no-default-features --features postgres
