@@ -20,9 +20,109 @@ campaign, but they cannot separate their work from seasonal trends, algorithm
 updates, or pure coincidence. Clients know this, and it erodes trust and
 justifies churn.
 
-Uplift runs a Bayesian causal impact model (similar to Google's CausalImpact R
-package) against GA4 data to produce a statistically rigorous answer to the
-question: did this specific intervention cause a measurable lift?
+Uplift runs causal inference models against GA4 data to produce a statistically
+rigorous answer to the question: did this specific intervention cause a
+measurable lift?
+
+Phase 1 ships Interrupted Time Series regression — valid causal inference,
+explainable to non-statisticians, implementable now. Phase 2 upgrades to
+Bayesian Structural Time Series (the method behind Google's published
+CausalImpact paper by Brodersen et al., 2015), which handles non-linear trends,
+time-varying seasonality, and structural uncertainty that ITS cannot.
+
+---
+
+## The causal model
+
+### Phase 1: Interrupted Time Series (current)
+
+Fits OLS on the pre-intervention period:
+
+```
+y_t = α + β₁t + β₂sin(2πt/7) + β₃cos(2πt/7) + β₄sin(4πt/7) + β₅cos(4πt/7) + γX_t + ε_t
+```
+
+Where:
+- `α` — intercept
+- `β₁t` — linear trend
+- `β₂...β₅` — Fourier terms capturing weekly seasonality (web traffic has a strong 7-day cycle)
+- `γX_t` — optional control variables (other metrics unaffected by the intervention)
+- `ε_t` — residuals
+
+**Counterfactual:** Project the fitted model forward into the post-period. This
+is what would have happened without the intervention.
+
+**Effect:** `actual_t - counterfactual_t` at each time point. Sum for the
+cumulative effect.
+
+**Confidence intervals:** Bootstrap the pre-period residuals. Resample with
+replacement and add to the counterfactual predictions. Repeat 10,000 times.
+The 2.5th and 97.5th percentiles of the bootstrapped cumulative effects are
+the 95% confidence interval.
+
+**P(effect > 0):** Fraction of bootstrap samples where the cumulative effect
+is positive.
+
+---
+
+### Phase 2: Bayesian Structural Time Series (planned)
+
+This is what Google's published CausalImpact method implements
+(Brodersen et al., 2015). It handles non-linear trends, time-varying
+seasonality, and structural uncertainty that ITS cannot.
+
+**State space formulation:**
+
+Observation equation:
+```
+y_t = Z_t'α_t + ε_t,    ε_t ~ N(0, σ²_ε)
+```
+
+State equation:
+```
+α_{t+1} = T_t α_t + R_t η_t,    η_t ~ N(0, Q_t)
+```
+
+Components of the state vector α_t:
+
+Local linear trend:
+```
+μ_{t+1} = μ_t + δ_t + u_t,    u_t ~ N(0, σ²_μ)
+δ_{t+1} = δ_t + v_t,           v_t ~ N(0, σ²_δ)
+```
+
+Seasonal component (weekly, S=7):
+```
+γ_{t+1} = -Σ_{s=1}^{6} γ_{t+1-s} + w_t,    w_t ~ N(0, σ²_γ)
+```
+
+Regression:
+```
+β'x_t    (spike-and-slab prior for automatic variable selection)
+```
+
+**Estimation: Gibbs sampler:**
+
+1. Initialize all parameters
+2. Repeat until convergence:
+   - Run Kalman smoother → sample state trajectory given current parameters
+   - Sample variance parameters (σ²_ε, σ²_μ, σ²_δ, σ²_γ) given state trajectory (conjugate Inverse-Gamma posteriors)
+   - Sample regression coefficients β given state trajectory (spike-and-slab)
+3. Run multiple chains in parallel via Rayon
+4. Check convergence via R-hat statistic
+
+**Counterfactual generation:**
+
+After fitting on the pre-period [1, T₀]:
+1. Initialize Kalman filter at the smoothed state at T₀
+2. For each MCMC sample, propagate the state forward through the post-period [T₀+1, T]
+3. Each sample gives one trajectory — the ensemble is the posterior predictive distribution over the counterfactual
+
+**Causal effect output:**
+- Point-wise effect: `α_t = y_t - E[ŷ_t | data]`
+- Cumulative effect: `Σ α_t` with credible interval
+- Relative effect: `(Σ α_t) / (Σ E[ŷ_t])`
+- P(effect > 0): fraction of posterior samples with positive cumulative effect
 
 ---
 
@@ -46,22 +146,42 @@ question: did this specific intervention cause a measurable lift?
 ```
 uplift/
 ├── crates/
-│   ├── uplift_core/        # Causal inference engine — no I/O, pure math
-│   ├── uplift_connectors/  # GA4 and Google OAuth API clients
-│   ├── uplift_db/          # SQLx repositories and database migrations
-│   ├── uplift_jobs/        # Apalis background workers
-│   ├── uplift_api/         # Axum HTTP server — entry point binary
-│   └── uplift_web/         # Leptos SSR frontend
-├── docker-compose.yml      # Local Postgres
-├── Leptos.toml             # cargo-leptos config
-└── Cargo.toml              # Workspace root
+│   ├── uplift_core/            # Causal inference engine — pure math, no I/O
+│   │   ├── src/
+│   │   │   ├── lib.rs
+│   │   │   ├── error.rs        # Error enum + Result alias
+│   │   │   ├── timeseries/
+│   │   │   │   ├── mod.rs
+│   │   │   │   ├── series.rs   # TimeSeries<T> type, DataPoint
+│   │   │   │   ├── decompose.rs # Seasonal decomposition (STL)
+│   │   │   │   └── transform.rs # Log, difference, normalize
+│   │   │   ├── model/
+│   │   │   │   ├── mod.rs
+│   │   │   │   ├── its.rs      # Phase 1: Interrupted Time Series
+│   │   │   │   ├── kalman.rs   # Phase 2: Kalman filter + smoother
+│   │   │   │   ├── mcmc.rs     # Phase 2: Gibbs sampler
+│   │   │   │   ├── bsts.rs     # Phase 2: BSTS model assembly
+│   │   │   │   └── components.rs # Local level, seasonal, regression
+│   │   │   ├── impact/
+│   │   │   │   ├── mod.rs
+│   │   │   │   ├── analysis.rs # CausalImpact orchestration
+│   │   │   │   └── report.rs   # ImpactReport, PointwiseEffect, Summary
+│   │   │   └── narrative.rs    # Plain-English summary generation
+│   ├── uplift_connectors/      # GA4 and Google OAuth API clients
+│   ├── uplift_db/              # SQLx repositories and database migrations
+│   ├── uplift_jobs/            # Apalis background workers
+│   ├── uplift_api/             # Axum HTTP server — entry point binary
+│   └── uplift_web/             # Leptos SSR frontend
+├── docker-compose.yml          # Local Postgres
+├── Leptos.toml                 # cargo-leptos config
+└── Cargo.toml                  # Workspace root
 ```
 
 ---
 
 ## Prerequisites
 
-- Rust (latest stable) — install via [rustup.rs](https://rustup.rs)
+- Rust (latest stable). Install via [rustup.rs](https://rustup.rs)
 - Docker: for local Postgres
 - sqlx-cli: for running migrations
 
@@ -103,7 +223,7 @@ Open `.env` and fill in:
 | `GOOGLE_REDIRECT_URI` | Set to `http://localhost:3000/auth/callback` |
 | `APP_BASE_URL` | Set to `http://localhost:3000` |
 
-Stripe and SMTP are optional for local development — leave them blank.
+Stripe and SMTP are optional for local development (leave them blank).
 
 ### 4. Run migrations
 
@@ -126,7 +246,7 @@ Open [http://localhost:3000](http://localhost:3000).
 1. Go to [console.cloud.google.com](https://console.cloud.google.com)
 2. Create a project
 3. Go to APIs & Services → OAuth consent screen → configure as External
-4. Add your email as a test user
+4. Add your email as a test user under Audience
 5. Go to Credentials → Create OAuth 2.0 Client ID → Web application
 6. Set authorised redirect URI to `http://localhost:3000/auth/callback`
 7. Copy the client ID and secret into `.env`
@@ -144,7 +264,7 @@ GOOGLE_REDIRECT_URI=http://localhost:3000/auth/callback
 APP_BASE_URL=http://localhost:3000
 RUST_LOG=uplift_api=debug,uplift_jobs=info,sqlx=warn
 
-# Optional
+# Optional — leave blank to disable
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 SMTP_HOST=
@@ -168,7 +288,7 @@ API creates an analysis row (status: pending) and returns immediately
     ↓
 Background job fetches daily GA4 data and caches it locally
     ↓
-Causal model runs — fits a Bayesian structural time series model
+Causal model runs (ITS Phase 1 / BSTS Phase 2)
     ↓
 Results saved: lift %, confidence interval, probability of effect, narrative
     ↓
@@ -181,13 +301,13 @@ User views the results page with chart and plain-English explanation
 
 | Phase | Description | Status |
 |---|---|---|
-| 1 | Workspace architecture | Done |
-| 2 | Google OAuth + token storage | Done |
-| 3 | Database layer — SQLx repositories | Done |
-| 4 | Background jobs — Apalis workers | Done |
-| 5 | GA4 connector — fetch daily metrics | Done |
+| 1 | Workspace architecture + ITS causal model | Done |
+| 2 | Google OAuth + encrypted token storage | Done |
+| 3 | Database layer (SQLx repositories) | Done |
+| 4 | Background jobs (Apalis workers) | Done |
+| 5 | GA4 connector (fetch daily metrics) | Done |
 | 6 | Leptos SSR frontend | Done |
-| 7 | Causal inference engine | In progress |
+| 7 | BSTS causal model (Kalman filter + Gibbs sampler) | In progress |
 | 8 | Stripe billing | Planned |
 | 9 | Marketing site | Planned |
 
